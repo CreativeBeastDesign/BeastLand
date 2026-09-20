@@ -1,0 +1,57 @@
+/*
+ * Component tokens
+ *
+ * layer 3 of the token pipeline: primitive -> semantic -> component -> theme.
+ * These tokens map semantic tokens onto component-level names so themes can
+ * override individual controls without touching the shared palette.
+ */
+
+:root {
+  /* Button */
+  --button-primary-bg: var(--color-accent);
+  --button-primary-text: var(--color-on-accent);
+  --button-primary-border: var(--color-border-active);
+
+  --button-glass-bg: var(--color-glass);
+  --button-glass-text: var(--color-text-high);
+  --button-glass-border: var(--color-border);
+
+  /* Input / control */
+  --control-bg: var(--color-surface-1);
+  --control-bg-hover: var(--color-surface-2);
+  --control-border: var(--color-border);
+  --control-border-focus: var(--color-border-active);
+
+  /* Window */
+  --window-bg: var(--color-surface-0);
+  --window-border: var(--color-border);
+  --window-title-text: var(--color-text-high);
+  --window-titlebar-bg: color-mix(
+    in oklab,
+    var(--color-surface-0) 60%,
+    transparent
+  );
+
+  /* Dock */
+  --dock-bg: var(--color-glass);
+  --dock-border: var(--color-border);
+  --dock-item-active-text: var(--color-accent);
+
+  /* Sidebar */
+  --sidebar-bg: var(--color-glass);
+  --sidebar-border: var(--color-border);
+  --sidebar-item-active-bg: var(--color-accent-soft);
+  --sidebar-item-active-text: var(--color-accent);
+
+  /* Modal */
+  --modal-bg: var(--color-surface-0);
+  --modal-backdrop: color-mix(in oklab, var(--color-bg) 60%, transparent);
+
+  /* Top bar */
+  --topbar-bg: var(--color-glass);
+  --topbar-border: var(--color-border);
+
+  /* Notification */
+  --notification-bg: var(--color-glass);
+  --notification-border: var(--color-border);
+}

@@ -1,0 +1,81 @@
+/*
+ * beast-dark theme
+ *
+ * layer 4 of the token pipeline: the Beast Land agency brand theme.
+ * Pink (#E67FB8) + cyan (#39EBE3) accents over a deep, desaturated
+ * teal-navy surface, tuned to sit on the wallpaper set (deep teal/blue-black
+ * night scenes with a pink horizon glow and cyan light sources).
+ * Apply with <html data-theme="beast-dark"> or via the theme module.
+ */
+
+[data-theme="beast-dark"] {
+  /* Brand */
+  --brand-primary: #e67fb8;
+  --brand-secondary: #39ebe3;
+
+  /* Surfaces (deep desaturated teal-navy, hue ~215) */
+  --color-bg: oklch(0.12 0.025 215);
+  --color-surface-0: oklch(0.16 0.03 215);
+  --color-surface-1: oklch(0.2 0.035 215);
+  --color-surface-2: oklch(0.25 0.04 215);
+  --color-overlay: oklch(0.28 0.04 215 / 0.85);
+
+  /* Text (slightly cool white) */
+  --color-text-high: oklch(0.96 0.01 210);
+  --color-text-med: oklch(0.78 0.015 210);
+  --color-text-low: oklch(0.64 0.015 210);
+  --color-text-disabled: oklch(0.45 0.015 210 / 0.6);
+
+  /* Accent (brand pink) */
+  --color-accent: oklch(from var(--brand-primary) l c h);
+  --color-accent-soft: oklch(from var(--brand-primary) l c h / 0.18);
+  --color-accent-strong: oklch(
+    from var(--brand-primary) calc(l - 0.08) calc(c - 0.02) h
+  );
+  /* Pink accent sits at L ~0.72 -> needs dark text on top of it */
+  --color-on-accent: oklch(0.18 0.04 345);
+
+  /* Secondary (brand cyan) */
+  --color-secondary: oklch(from var(--brand-secondary) l c h);
+  --color-secondary-soft: oklch(from var(--brand-secondary) l c h / 0.18);
+  --color-secondary-strong: oklch(
+    from var(--brand-secondary) calc(l - 0.08) calc(c - 0.02) h
+  );
+  /* Cyan secondary is also bright -> dark text on top of it */
+  --color-on-secondary: oklch(0.16 0.03 195);
+
+  /* Status */
+  --color-success: oklch(0.72 0.15 165); /* teal-green */
+  --color-warning: oklch(0.8 0.15 85); /* amber */
+  --color-danger: oklch(0.68 0.19 25); /* coral-red, distinct from the pink accent */
+  --color-info: var(--color-secondary); /* cyan */
+
+  /* Borders */
+  --color-border: oklch(from var(--color-text-high) l c h / 0.14);
+  --color-border-strong: oklch(from var(--color-text-high) l c h / 0.28);
+  --color-border-subtle: oklch(from var(--color-text-high) l c h / 0.07);
+  --color-border-active: oklch(from var(--color-accent) l c h / 0.6);
+
+  /* Focus / glow: focus ring = secondary cyan, ambient glow = accent pink,
+     so active vs. focused states read as visually distinct */
+  --color-focus: var(--color-secondary);
+  --color-glow: oklch(from var(--color-accent) l c h / 0.4);
+  --glow-accent: 0 0 14px oklch(from var(--color-accent) l c h / 0.35);
+  --glow-secondary: 0 0 14px oklch(from var(--color-secondary) l c h / 0.35);
+  --glow-focus: 0 0 0 3px oklch(from var(--color-secondary) l c h / 0.35);
+  --glow-active: 0 0 22px oklch(from var(--color-accent) l c h / 0.35);
+
+  /* Glass */
+  --color-glass: oklch(0.19 0.03 210 / 0.6);
+  --fx-glass-saturation: 1.4;
+  --fx-glass-contrast: 1.06;
+  --fx-shadow-color: oklch(0% 0 0 / 0.55);
+
+  /* Component overrides */
+  --button-primary-bg: var(--color-accent);
+  --control-bg: oklch(0.2 0.035 215);
+  --window-bg: oklch(0.155 0.03 215 / 0.92);
+  --window-titlebar-bg: oklch(from var(--color-surface-0) l c h / 0.75);
+  --modal-backdrop: oklch(0.1 0.025 215 / 0.65);
+  --dock-item-active-text: var(--color-secondary);
+}

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.6/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!!mki-frontend/.svelte-doctor",
+      "!!mki-frontend/.svelte-kit",
+      "!!mki-frontend/cypress",
+      "!!mki-frontend/.storybook",
+      "!!mki-frontend/build",
+      "!!mki-frontend/node_modules"
+    ]
+  },
+
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "all",
+      "semicolons": "always",
+      "arrowParentheses": "always"
+    }
+  },
+
+  "html": {
+    "experimentalFullSupportEnabled": true
+  },
+
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+
+      "a11y": {
+        "noSvgWithoutTitle": "off",
+        "useButtonType": "off",
+        "noStaticElementInteractions": "off",
+        "useSemanticElements": "off",
+        "noLabelWithoutControl": "off",
+        "noNoninteractiveTabindex": "off",
+        "noAutofocus": "off"
+      },
+
+      "correctness": {
+        "noUnusedVariables": "off",
+        "noUnusedImports": "off"
+      },
+
+      "style": {
+        "noNonNullAssertion": "off"
+      },
+
+      "complexity": {
+        "noImportantStyles": "off"
+      },
+
+      "suspicious": {
+        "noExplicitAny": "off"
+      }
+    }
+  }
+}
