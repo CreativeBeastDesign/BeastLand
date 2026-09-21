@@ -3,6 +3,15 @@
  *
  * The tiling grid: a fixed-column, unbounded-row layout of `Container`s.
  * Implements the `WorkspaceStore` contract in `$lib/tiling/types.ts`.
+ *
+ * Multiple workspaces (Hyprland-style): the store holds `layouts` (a list of
+ * named `WorkspaceLayout`s, each with its own containers/selection/`@n`
+ * counter) and one `activeId`. Every original container operation — spawn,
+ * move, resize, close, select*, setTitle, peek* — is a thin facade over the
+ * *active* layout, read through `activeLayout()` and written through
+ * `updateActive()`. `prune()` is the one exception: it walks every layout,
+ * because a stale record is stale everywhere, not just in the workspace
+ * you're looking at.
  */
 
 import { kinds } from "./kinds.svelte.js";
@@ -19,85 +28,133 @@ import {
   type MoveResult,
   type Rect,
   type ResizeIntent,
+  type WorkspaceLayout,
   type WorkspaceStore,
 } from "./types.js";
 
-const STORAGE_KEY = "beastland:workspace";
+const STORAGE_KEY = "beastland:workspaces";
+/** Pre-workspaces single-layout key; migrated into layout "1" on first read. */
+const OLD_STORAGE_KEY = "beastland:workspace";
 
 /** Do two grid rectangles overlap? */
 export function overlaps(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
-type Persisted = { containers: Container[]; selectedId: ContainerId | null; nextId: number };
+type Persisted = { layouts: WorkspaceLayout[]; activeId: string };
+type OldPersisted = { containers: Container[]; selectedId: ContainerId | null; nextId: number };
 
-function readPersisted(): Persisted | null {
+function emptyLayout(id: string, name: string): WorkspaceLayout {
+  return { id, name, containers: [], selectedId: null, nextId: 1 };
+}
+
+/** Read the current-format key; null when absent or malformed. */
+function readCurrent(): Persisted | null {
   try {
     const raw = storage.get(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<Persisted>;
-    if (!Array.isArray(parsed.containers)) return null;
-    return {
-      containers: parsed.containers,
-      selectedId: parsed.selectedId ?? null,
-      nextId: parsed.nextId ?? 1,
-    };
+    if (!Array.isArray(parsed.layouts) || parsed.layouts.length === 0) return null;
+    return { layouts: parsed.layouts, activeId: parsed.activeId ?? parsed.layouts[0].id };
   } catch {
     return null;
   }
 }
 
-function initialState(): Persisted {
-  const persisted = readPersisted();
-  if (!persisted) return { containers: [], selectedId: null, nextId: 1 };
+/** Read the pre-workspaces single-layout key and fold it into layout "1". */
+function readOld(): Persisted | null {
+  try {
+    const raw = storage.get(OLD_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<OldPersisted>;
+    if (!Array.isArray(parsed.containers)) return null;
+    const layout: WorkspaceLayout = {
+      id: "1",
+      name: "1",
+      containers: parsed.containers,
+      selectedId: parsed.selectedId ?? null,
+      nextId: parsed.nextId ?? 1,
+    };
+    return { layouts: [layout], activeId: "1" };
+  } catch {
+    return null;
+  }
+}
 
-  // Kinds register after this module loads, so stale containers are removed
-  // later by `prune()` (the route calls it once its kinds are registered;
-  // `hydrate` calls it itself when kinds already are).
-  const containers = persisted.containers;
+function readPersisted(): { persisted: Persisted; migrated: boolean } {
+  const current = readCurrent();
+  if (current) return { persisted: current, migrated: false };
+
+  const old = readOld();
+  if (old) return { persisted: old, migrated: true };
+
+  return { persisted: { layouts: [emptyLayout("1", "1")], activeId: "1" }, migrated: false };
+}
+
+function normalizeLayout(l: WorkspaceLayout): WorkspaceLayout {
+  const containers = l.containers;
   const maxId = containers.reduce((max, c) => Math.max(max, c.id), 0);
-  const selectedId = containers.some((c) => c.id === persisted.selectedId) ? persisted.selectedId : null;
-  return { containers, selectedId, nextId: Math.max(persisted.nextId, maxId + 1) };
+  const selectedId = containers.some((c) => c.id === l.selectedId) ? l.selectedId : null;
+  return { id: l.id, name: l.name, containers, selectedId, nextId: Math.max(l.nextId ?? 1, maxId + 1) };
+}
+
+function initialState(): { layouts: WorkspaceLayout[]; activeId: string; migrated: boolean } {
+  const { persisted, migrated } = readPersisted();
+  const layouts = persisted.layouts.map(normalizeLayout);
+  const activeId = layouts.some((l) => l.id === persisted.activeId) ? persisted.activeId : layouts[0].id;
+  return { layouts, activeId, migrated };
 }
 
 function createWorkspace() {
-  let containers = $state<Container[]>([]);
-  let selectedId = $state<ContainerId | null>(null);
-  let nextId = 1;
+  let layouts = $state<WorkspaceLayout[]>([]);
+  let activeId = $state<string>("");
+
+  function activeLayout(): WorkspaceLayout {
+    return layouts.find((l) => l.id === activeId) ?? layouts[0];
+  }
+
+  /** Replace the active layout's fields immutably (same pattern the old single-layout store used). */
+  function updateActive(patch: Partial<Pick<WorkspaceLayout, "containers" | "selectedId" | "nextId">>) {
+    layouts = layouts.map((l) => (l.id === activeId ? { ...l, ...patch } : l));
+  }
 
   /** (Re)read the layout; runs at import and whenever the storage adapter changes. */
   function hydrate() {
     const initial = initialState();
-    containers = initial.containers;
-    selectedId = initial.selectedId;
-    nextId = initial.nextId;
+    layouts = initial.layouts;
+    activeId = initial.activeId;
     // A late hydrate (async `storage.load`) lands after the route registered
     // its kinds, so the stale-container pass the route did is repeated here.
     if (kinds.all.length > 0) prune();
+    if (initial.migrated) {
+      persist();
+      storage.remove(OLD_STORAGE_KEY);
+    }
   }
 
   function persist() {
     try {
-      storage.setJson(STORAGE_KEY, { containers, selectedId, nextId });
+      storage.setJson(STORAGE_KEY, { layouts, activeId });
     } catch {
       /* storage may be unavailable; the in-memory state still works */
     }
   }
 
   function get(id: ContainerId): Container | undefined {
-    return containers.find((c) => c.id === id);
+    return activeLayout().containers.find((c) => c.id === id);
   }
 
   function findByContent(contentId: string): Container | undefined {
-    return containers.find((c) => c.contentId === contentId);
+    return activeLayout().containers.find((c) => c.contentId === contentId);
   }
 
   function rows(): number {
-    return containers.reduce((max, c) => Math.max(max, c.y + c.h), 0);
+    return activeLayout().containers.reduce((max, c) => Math.max(max, c.y + c.h), 0);
   }
 
-  /** First-fit row-major scan for a free `w`×`h` rectangle. */
+  /** First-fit row-major scan for a free `w`×`h` rectangle (in the active layout). */
   function findFreeRect(w: number, h: number): { x: number; y: number } {
+    const containers = activeLayout().containers;
     const maxY = rows() + h;
     for (let y = 0; y <= maxY; y++) {
       for (let x = 0; x <= GRID_COLUMNS - w; x++) {
@@ -112,12 +169,12 @@ function createWorkspace() {
 
   function select(id: ContainerId | null): boolean {
     if (id === null) {
-      selectedId = null;
+      updateActive({ selectedId: null });
       persist();
       return true;
     }
     if (!get(id)) return false;
-    selectedId = id;
+    updateActive({ selectedId: id });
     persist();
     return true;
   }
@@ -141,8 +198,9 @@ function createWorkspace() {
   ): Container {
     // Kind-specific size unless the caller asks for something explicit.
     const { x, y, w, h } = peekSpawn({ ...kinds.sizeOf(kind), ...opts });
+    const layout = activeLayout();
     const container: Container = {
-      id: nextId++,
+      id: layout.nextId,
       kind,
       contentId,
       title: opts?.title,
@@ -151,8 +209,7 @@ function createWorkspace() {
       w,
       h,
     };
-    containers = [...containers, container];
-    selectedId = container.id;
+    updateActive({ containers: [...layout.containers, container], selectedId: container.id, nextId: layout.nextId + 1 });
     persist();
     return container;
   }
@@ -160,7 +217,7 @@ function createWorkspace() {
   function open(kind: ContentKind, contentId: string): Container {
     const existing = findByContent(contentId);
     if (existing) {
-      selectedId = existing.id;
+      updateActive({ selectedId: existing.id });
       persist();
       return existing;
     }
@@ -168,10 +225,12 @@ function createWorkspace() {
   }
 
   function close(id: ContainerId): boolean {
-    const before = containers.length;
-    containers = containers.filter((c) => c.id !== id);
+    const layout = activeLayout();
+    const before = layout.containers.length;
+    const containers = layout.containers.filter((c) => c.id !== id);
     if (containers.length === before) return false;
 
+    let selectedId = layout.selectedId;
     if (selectedId === id) {
       selectedId =
         containers.length === 0
@@ -180,57 +239,68 @@ function createWorkspace() {
               Math.abs(c.id - id) < Math.abs(nearest.id - id) ? c : nearest,
             ).id;
     }
+    updateActive({ containers, selectedId });
     persist();
     return true;
   }
 
+  /** Drop containers whose record no longer exists, across every layout. */
   function prune(): number {
-    const before = containers.length;
-    containers = containers.filter((c) => kinds.exists(c.kind, c.contentId));
-    if (containers.length === before) return 0;
-    if (selectedId !== null && !containers.some((c) => c.id === selectedId)) selectedId = null;
-    persist();
-    return before - containers.length;
+    let total = 0;
+    layouts = layouts.map((l) => {
+      const before = l.containers.length;
+      const containers = l.containers.filter((c) => kinds.exists(c.kind, c.contentId));
+      if (containers.length === before) return l;
+      total += before - containers.length;
+      const selectedId = l.selectedId !== null && containers.some((c) => c.id === l.selectedId) ? l.selectedId : null;
+      return { ...l, containers, selectedId };
+    });
+    if (total > 0) persist();
+    return total;
   }
 
   hydrate();
   storage.register(STORAGE_KEY, hydrate);
+  // Read (and migrate) the pre-workspaces key too, so an async `storage.load`
+  // — which only fetches registered keys — still sees it.
+  storage.register(OLD_STORAGE_KEY, hydrate);
 
   function closeAll(): void {
-    containers = [];
-    selectedId = null;
-    nextId = 1; // an empty workspace starts counting from @1 again
+    updateActive({ containers: [], selectedId: null, nextId: 1 }); // an empty layout starts counting from @1 again
     persist();
   }
 
   function byIdOrder(): Container[] {
-    return [...containers].sort((a, b) => a.id - b.id);
+    return [...activeLayout().containers].sort((a, b) => a.id - b.id);
   }
 
   function selectNext(): void {
     const ordered = byIdOrder();
     if (ordered.length === 0) return;
+    const selectedId = activeLayout().selectedId;
     const i = ordered.findIndex((c) => c.id === selectedId);
     const next = i === -1 ? ordered[0] : ordered[(i + 1) % ordered.length];
-    selectedId = next.id;
+    updateActive({ selectedId: next.id });
     persist();
   }
 
   function selectPrev(): void {
     const ordered = byIdOrder();
     if (ordered.length === 0) return;
+    const selectedId = activeLayout().selectedId;
     const i = ordered.findIndex((c) => c.id === selectedId);
     const prev = i === -1 ? ordered[ordered.length - 1] : ordered[(i - 1 + ordered.length) % ordered.length];
-    selectedId = prev.id;
+    updateActive({ selectedId: prev.id });
     persist();
   }
 
   function selectDirection(dir: Direction): boolean {
-    const current = selectedId !== null ? get(selectedId) : undefined;
+    const layout = activeLayout();
+    const current = layout.selectedId !== null ? get(layout.selectedId) : undefined;
     if (!current) {
       const ordered = byIdOrder();
       if (ordered.length === 0) return false;
-      selectedId = ordered[0].id;
+      updateActive({ selectedId: ordered[0].id });
       persist();
       return true;
     }
@@ -241,7 +311,7 @@ function createWorkspace() {
     let bestDist = Infinity;
     let bestBand = false;
 
-    for (const c of containers) {
+    for (const c of layout.containers) {
       if (c.id === current.id) continue;
       const ox = c.x + c.w / 2;
       const oy = c.y + c.h / 2;
@@ -268,7 +338,7 @@ function createWorkspace() {
     }
 
     if (!best) return false;
-    selectedId = best.id;
+    updateActive({ selectedId: best.id });
     persist();
     return true;
   }
@@ -288,7 +358,7 @@ function createWorkspace() {
       return { rect: target, ok: false, reason: "at edge" };
     }
 
-    const occupants = containers.filter((c) => c.id !== id && overlaps(target, c));
+    const occupants = activeLayout().containers.filter((c) => c.id !== id && overlaps(target, c));
 
     if (occupants.length === 0) {
       return { rect: target, ok: true };
@@ -308,19 +378,22 @@ function createWorkspace() {
     const peek = peekMove(id, dir);
     if (!peek.ok) return { ok: false, reason: peek.reason ?? "cannot move" };
 
+    const layout = activeLayout();
     if (peek.swapWith !== undefined) {
       const container = get(id)!;
       const other = get(peek.swapWith)!;
-      containers = containers.map((c) => {
+      const containers = layout.containers.map((c) => {
         if (c.id === id) return { ...c, x: other.x, y: other.y };
         if (c.id === other.id) return { ...c, x: container.x, y: container.y };
         return c;
       });
+      updateActive({ containers });
       persist();
       return { ok: true };
     }
 
-    containers = containers.map((c) => (c.id === id ? { ...c, x: peek.rect.x, y: peek.rect.y } : c));
+    const containers = layout.containers.map((c) => (c.id === id ? { ...c, x: peek.rect.x, y: peek.rect.y } : c));
+    updateActive({ containers });
     persist();
     return { ok: true };
   }
@@ -337,7 +410,7 @@ function createWorkspace() {
     const h = size.h === undefined ? container.h : Math.max(size.h, MIN_SIZE.h);
     const target: Rect = { x: container.x, y: container.y, w, h };
 
-    const occupant = containers.find((c) => c.id !== id && overlaps(target, c));
+    const occupant = activeLayout().containers.find((c) => c.id !== id && overlaps(target, c));
     if (occupant) {
       return { rect: target, ok: false, reason: `would overlap @${occupant.id}` };
     }
@@ -349,25 +422,108 @@ function createWorkspace() {
     const peek = peekResize(id, size);
     if (!peek.ok) return { ok: false, reason: peek.reason ?? "cannot resize" };
 
-    containers = containers.map((c) => (c.id === id ? { ...c, w: peek.rect.w, h: peek.rect.h } : c));
+    const containers = activeLayout().containers.map((c) => (c.id === id ? { ...c, w: peek.rect.w, h: peek.rect.h } : c));
+    updateActive({ containers });
     persist();
     return { ok: true };
   }
 
   function setTitle(id: ContainerId, title: string | undefined): void {
-    containers = containers.map((c) => (c.id === id ? { ...c, title } : c));
+    const containers = activeLayout().containers.map((c) => (c.id === id ? { ...c, title } : c));
+    updateActive({ containers });
+    persist();
+  }
+
+  // -- Workspaces (multiple layouts) --
+
+  /** Smallest positive integer not already used as a layout name. */
+  function nextAutoName(): string {
+    const used = new Set(layouts.map((l) => l.name));
+    let n = 1;
+    while (used.has(String(n))) n++;
+    return String(n);
+  }
+
+  /** One past the highest numeric layout id in use (ids stay small and stable, jj-style). */
+  function nextLayoutId(): string {
+    const maxId = layouts.reduce((max, l) => {
+      const n = Number(l.id);
+      return Number.isFinite(n) && n > max ? n : max;
+    }, 0);
+    return String(maxId + 1);
+  }
+
+  function resolveLayout(idOrIndex: string | number): WorkspaceLayout | undefined {
+    if (typeof idOrIndex === "number") {
+      return Number.isInteger(idOrIndex) ? layouts[idOrIndex - 1] : undefined;
+    }
+    return layouts.find((l) => l.id === idOrIndex) ?? layouts.find((l) => l.name === idOrIndex);
+  }
+
+  function switchLayout(idOrIndex: string | number): boolean {
+    const target = resolveLayout(idOrIndex);
+    if (!target) return false;
+    activeId = target.id;
+    persist();
+    return true;
+  }
+
+  function create(name?: string): WorkspaceLayout {
+    const trimmed = name?.trim();
+    const layout: WorkspaceLayout = emptyLayout(nextLayoutId(), trimmed || nextAutoName());
+    layouts = [...layouts, layout];
+    activeId = layout.id;
+    persist();
+    return layout;
+  }
+
+  function rename(id: string, name: string): boolean {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    if (!layouts.some((l) => l.id === id)) return false;
+    layouts = layouts.map((l) => (l.id === id ? { ...l, name: trimmed } : l));
+    persist();
+    return true;
+  }
+
+  function remove(id: string): boolean {
+    if (layouts.length <= 1) return false; // never remove the last workspace
+    const index = layouts.findIndex((l) => l.id === id);
+    if (index === -1) return false;
+
+    const wasActive = activeId === id;
+    layouts = layouts.filter((l) => l.id !== id);
+    if (wasActive) {
+      activeId = layouts[Math.min(index, layouts.length - 1)].id;
+    }
+    persist();
+    return true;
+  }
+
+  function next(): void {
+    if (layouts.length <= 1) return;
+    const i = layouts.findIndex((l) => l.id === activeId);
+    activeId = layouts[(i + 1) % layouts.length].id;
+    persist();
+  }
+
+  function prev(): void {
+    if (layouts.length <= 1) return;
+    const i = layouts.findIndex((l) => l.id === activeId);
+    activeId = layouts[(i - 1 + layouts.length) % layouts.length].id;
     persist();
   }
 
   return {
     get containers(): readonly Container[] {
-      return containers;
+      return activeLayout().containers;
     },
     get selectedId(): ContainerId | null {
-      return selectedId;
+      return activeLayout().selectedId;
     },
     get selected(): Container | null {
-      return selectedId !== null ? get(selectedId) ?? null : null;
+      const layout = activeLayout();
+      return layout.selectedId !== null ? layout.containers.find((c) => c.id === layout.selectedId) ?? null : null;
     },
     get columns(): number {
       return GRID_COLUMNS;
@@ -395,6 +551,22 @@ function createWorkspace() {
     peekResize,
     peekSpawn,
     peekSpawnFor,
+
+    get layouts(): readonly WorkspaceLayout[] {
+      return layouts;
+    },
+    get activeId(): string {
+      return activeId;
+    },
+    get active(): WorkspaceLayout {
+      return activeLayout();
+    },
+    switch: switchLayout,
+    create,
+    rename,
+    remove,
+    next,
+    prev,
   };
 }
 

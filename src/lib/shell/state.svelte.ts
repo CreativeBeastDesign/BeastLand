@@ -6,17 +6,12 @@
  * Import it as `import { shell } from "$lib/shell/state.svelte";`.
  */
 
-import { applyTheme, defaultTheme, getTheme, isThemeId, themeIds } from "$lib/theme/index.js";
+import { applyTheme } from "$lib/theme/index.js";
+import { defaultTheme, themeIds, themes } from "$lib/theme/themes.svelte.js";
+import { looks } from "$lib/theme/looks.svelte.js";
 import { storage } from "./storage.js";
-import type { ThemeId } from "$lib/theme/types.js";
 import type { Intent } from "./commands.js";
-import {
-  defaultWallpaper,
-  getWallpaper,
-  isWallpaperId,
-  wallpaperIds,
-  type WallpaperId,
-} from "$lib/wallpapers.js";
+import { defaultWallpaper, wallpaperIds, wallpapers } from "$lib/wallpapers.svelte.js";
 
 const STORAGE_KEY = "beastland:shell";
 
@@ -31,16 +26,31 @@ function readPersisted(): Persisted {
   }
 }
 
-function createShell() {
-  let theme = $state<ThemeId>(defaultTheme.id);
-  let wallpaper = $state<WallpaperId>(defaultWallpaper.id);
+/** What `wallpaperMeta` returns when the current id isn't (or isn't yet) registered. */
+type WallpaperMeta = { id: string; label: string; src?: string; description?: string };
 
-  /** (Re)read theme + wallpaper; runs at import and whenever the storage adapter changes. */
+function createShell() {
+  let theme = $state<string>(defaultTheme().id);
+  let wallpaper = $state<string>(defaultWallpaper()?.id ?? "");
+
+  /**
+   * (Re)read theme + wallpaper; runs at import and whenever the storage
+   * adapter changes.
+   *
+   * Deliberately does NOT validate the persisted ids against the theme/
+   * wallpaper registries: this module hydrates at *import* time, which can
+   * run before the app's layout module has registered its wallpapers/looks
+   * (imports are hoisted, so this file's own top-level `hydrateFromStorage()`
+   * call below may execute before another module's `registerWallpaper`
+   * calls do). The persisted id is stored as-is; `themeMeta`/`wallpaperMeta`
+   * resolve it lazily on every read and fall back to the default when it
+   * turns out to be unknown. Validation belongs to `setTheme`/`setWallpaper`
+   * (called by commands/pickers, well after the app has registered).
+   */
   function hydrateFromStorage() {
     const persisted = readPersisted();
-    theme = persisted.theme && isThemeId(persisted.theme) ? persisted.theme : defaultTheme.id;
-    wallpaper =
-      persisted.wallpaper && isWallpaperId(persisted.wallpaper) ? persisted.wallpaper : defaultWallpaper.id;
+    theme = persisted.theme ?? defaultTheme().id;
+    wallpaper = persisted.wallpaper ?? (defaultWallpaper()?.id ?? "");
     if (typeof document !== "undefined") applyTheme(theme);
   }
   hydrateFromStorage();
@@ -70,29 +80,41 @@ function createShell() {
       return theme;
     },
     get themeMeta() {
-      return getTheme(theme);
+      return themes.get(theme) ?? defaultTheme();
     },
     get wallpaper() {
       return wallpaper;
     },
-    get wallpaperMeta() {
-      return getWallpaper(wallpaper);
+    get wallpaperMeta(): WallpaperMeta {
+      return wallpapers.get(wallpaper) ?? defaultWallpaper() ?? { id: wallpaper, label: wallpaper };
     },
-    themeIds,
-    wallpaperIds,
+    get themeIds() {
+      return themeIds();
+    },
+    get wallpaperIds() {
+      return wallpaperIds();
+    },
 
-    /** Set the theme by id. Returns false when the id is unknown. */
-    setTheme(id: string): boolean {
-      if (!isThemeId(id)) return false;
+    /**
+     * Set the theme by id. Returns false when it isn't registered. When the
+     * theme declares a default `wallpaper` that IS registered and
+     * `keepWallpaper` wasn't requested, also switches to it.
+     */
+    setTheme(id: string, opts?: { keepWallpaper?: boolean }): boolean {
+      const t = themes.get(id);
+      if (!t) return false;
       theme = id;
       if (typeof document !== "undefined") applyTheme(id);
+      if (!opts?.keepWallpaper && t.wallpaper && wallpapers.get(t.wallpaper)) {
+        wallpaper = t.wallpaper;
+      }
       persist();
       return true;
     },
 
-    /** Set the wallpaper by id. Returns false when the id is unknown. */
+    /** Set the wallpaper by id. Returns false when it isn't registered. */
     setWallpaper(id: string): boolean {
-      if (!isWallpaperId(id)) return false;
+      if (!wallpapers.get(id)) return false;
       wallpaper = id;
       persist();
       return true;
@@ -100,14 +122,37 @@ function createShell() {
 
     /** Cycle to the next theme in registry order. */
     nextTheme() {
-      const i = themeIds.indexOf(theme);
-      this.setTheme(themeIds[(i + 1) % themeIds.length]);
+      const ids = themeIds();
+      if (ids.length === 0) return;
+      const i = ids.indexOf(theme);
+      this.setTheme(ids[(i + 1) % ids.length]);
     },
 
-    /** Cycle to the next wallpaper in manifest order. */
+    /** Cycle to the next wallpaper in registry order. */
     nextWallpaper() {
-      const i = wallpaperIds.indexOf(wallpaper);
-      this.setWallpaper(wallpaperIds[(i + 1) % wallpaperIds.length]);
+      const ids = wallpaperIds();
+      if (ids.length === 0) return;
+      const i = ids.indexOf(wallpaper);
+      this.setWallpaper(ids[(i + 1) % ids.length]);
+    },
+
+    /**
+     * The id of the registered look whose (theme, wallpaper) equals the
+     * current pair, or null when nothing matches — derived, nothing new is
+     * persisted for it.
+     */
+    get look(): string | null {
+      const match = looks.all.find((l) => l.theme === theme && l.wallpaper === wallpaper);
+      return match ? match.id : null;
+    },
+
+    /** Apply a registered look's theme + wallpaper. Returns false when unknown. */
+    applyLook(id: string): boolean {
+      const l = looks.get(id);
+      if (!l) return false;
+      const themeOk = this.setTheme(l.theme, { keepWallpaper: true });
+      const wallpaperOk = this.setWallpaper(l.wallpaper);
+      return themeOk && wallpaperOk;
     },
 
     get preview() {

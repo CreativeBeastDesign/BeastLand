@@ -13,7 +13,7 @@
  */
 export type Span = {
   text: string;
-  tone?: "id" | "id-rest" | "key" | "muted" | "accent" | "bold";
+  tone?: "id" | "id-rest" | "key" | "muted" | "accent" | "bold" | "code";
   /**
    * Makes the span clickable: click runs this line through the dispatcher
    * (so it lands in history), ⇧-click inserts it into the prompt instead.
@@ -39,7 +39,7 @@ export type Intent = {
 };
 
 export type OutputLine = {
-  kind: "input" | "output" | "error" | "system";
+  kind: "input" | "output" | "error" | "system" | "prose";
   /** Plain text of the line (spans joined), always present. */
   text: string;
   /** Optional styled runs; when present they are rendered instead of `text`. */
@@ -53,10 +53,32 @@ export type OutputLine = {
 
 export type PrintOptions = { hang?: number };
 
+/**
+ * Returned by `ctx.print` so a command can keep mutating the line it just
+ * printed — the primitive a streaming command (an LLM answer, a progress
+ * line…) needs. `set` replaces the content in place (keeping the line's
+ * `kind`); `append` grows the text, and the last span's text when the line
+ * carries spans. Neither pushes a new line, so streaming a line never
+ * re-triggers scroll-to-bottom or the live-region announcement — those fire
+ * once, when the block finishes.
+ */
+export type LineHandle = {
+  set(text: string | Span[]): void;
+  append(delta: string): void;
+};
+
 export type CommandContext = {
-  print: (text: string | Span[], kind?: OutputLine["kind"], opts?: PrintOptions) => void;
+  print: (text: string | Span[], kind?: OutputLine["kind"], opts?: PrintOptions) => LineHandle;
   clear: () => void;
   commands: Command[];
+  /**
+   * Aborted when the user cancels this line (Esc while its block is still
+   * running) or the Terminal unmounts. A streaming `run` should pass this to
+   * `fetch`, or check `signal.aborted` in its loop; when the resulting
+   * rejection's `name` is `"AbortError"` the Terminal prints `cancelled`
+   * instead of treating it as a command error.
+   */
+  signal: AbortSignal;
 };
 
 /** A declared flag. Drives completion, `help <command>`, and unknown-flag warnings. */

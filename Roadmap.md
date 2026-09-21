@@ -54,6 +54,10 @@ canvas scrolling makes rare.
 
 ### Niri-style scrolling columns as a second layout strategy
 
+(Multiple *workspaces* now exist as a way to get more than one grid — see
+Implemented; this item is about a second layout *strategy* within one
+workspace.)
+
 The container model (`{x, y, w, h}`) is layout-agnostic; a column strategy
 (width per column, height per window inside the column, `move -l/-r` between
 columns) can sit next to the grid strategy. Not started.
@@ -159,7 +163,12 @@ Things that will hurt during extraction, in order:
   popovers use `--color-popover` (more opaque) with the large blur.
 - **Terminal:** multi-line input (⇧⏎), history persistence, `!!`/`!n`,
   copy-as-text of a block, a `--json` flag on data commands for other
-  consumers.
+  consumers. ~~Streaming primitives~~ — done: `ctx.print` returns a
+  `LineHandle` (`set`/`append`), blocks stay `running` (pulsing glyph, no
+  auto-fold, no `kind` classification) until `run` settles, `ctx.signal`
+  carries cancellation, and `kind: "prose"` lines render light inline
+  markdown via `proseSpans`. See `src/routes/tiling/demo-commands.ts`
+  (`stream`).
 - ~~**A11y pass**~~ — done: global reduced-motion guard + `scrollBehavior()`
   for JS scrolls, reduced-transparency/no-backdrop-filter fallbacks for
   tiles/terminal/popup (grain off), focus rings everywhere, modal focus
@@ -203,6 +212,9 @@ Things that will hurt during extraction, in order:
   graph to mirror client-side and when to fetch. Deferred until the data
   layer is real.
 - A *second*, transient scratchpad terminal is still Option B (deferred).
+- **`handover-v2.md`** holds the app-side decisions (ask, conversations,
+  notes, search, wallpaper storage, workspaces persistence, settings
+  sections, sequencing, what not to build).
 - **`HANDOFF.md`** is the integration guide for an app bringing its own
   data; keep it in step with `KindSpec` and the storage seam.
 - **Storage: per-request state on the server.** Stores are module
@@ -352,9 +364,64 @@ Things that will hurt during extraction, in order:
   the route that loads, not the layout — the showcase keeps its SSR.
   `use()` re-hydrates too, so the old "swap before importing stores" rule
   is gone.
+- **Open theme/wallpaper/look registries.** `themes`/`wallpapers` are
+  rune-backed registries (`.all`/`.get`/`.register`, mirroring `kinds`);
+  the library ships five themes and zero wallpapers (the demo registers its
+  own in `src/routes/+layout.svelte`). `Theme.wallpaper` names a default
+  wallpaper, resolved lazily so a dangling id is harmless;
+  `shell.setTheme(id, { keepWallpaper })` follows it. **Looks** are named
+  theme+wallpaper pairs; `shell.look` is derived, nothing new persisted.
+  Hydration skips registry validation on purpose (imports are hoisted, the
+  app registers after the store hydrates) — `themeMeta`/`wallpaperMeta`
+  resolve at read time. The Proxy shim that briefly kept `themes[id]`
+  working was removed; the showcase iterates `themes.all`.
+- **Settings registry + tile.** `settings.register(section)` (id, label,
+  component, order), a singleton `settingsKind` tile with `Tabs`, one
+  shipped section (Appearance: `LookPicker`/`ThemePicker`/`WallpaperPicker`,
+  dumb molecules), `settings`/`prefs` command.
+- **Multiple workspaces (layouts).** `workspace.layouts`/`activeId`,
+  `switch/create/rename/remove/next/prev`; every existing container op is a
+  facade over the active layout, so call sites don't change. `@n` counters
+  are per layout; `prune()` walks every layout. Persisted as
+  `beastland:workspaces`, migrated from `beastland:workspace`. `ws` command
+  (in `containerCommands`), `⌃⇧1…9`/`⌃⇧n`/`⌃⇧p`, `<Terminal historyKey>`
+  for per-workspace input history. Not persisted: output blocks (a stale
+  second copy of the data). Small leftover: removing a workspace leaves its
+  `beastland:history:<id>` key behind.
+- **`Markdown` component:** renders marked's token tree (`marked.lexer`,
+  GFM) through Svelte snippets instead of `{@html}` — no sanitizer because
+  no HTML string ever exists; a raw HTML tag renders as escaped text, a raw
+  HTML block is dropped; images become links. Refs and `beast`/`sh` fence
+  lines reuse the grammar of `shell/prose.ts` (regex duplicated, prose.ts
+  doesn't export it) and the same click-runs/⇧-inserts behaviour via
+  `oncommand`. Highlighting is pluggable (`highlight?`) and ships empty;
+  `fractalpop` is a candidate app-side highlighter (5 KB, CSS-variable
+  themed) but is version 0 with no stated license, so it isn't wired in.
+  `marked` is the package's first runtime dependency (zero deps, 40 KB).
+- **Keymap matching:** letters match on `event.key` — `code` is the
+  physical US position, so on QWERTZ the key labelled Z reports `KeyY` and
+  `⌃z`/`⌃⇧z` never fired for the author. Digits and named keys keep using
+  `code` (⌃⇧1 is `!`/`+` in `key`), with a `key` fallback only when `code`
+  is empty (synthetic/virtual keyboards).
+- **Terminal title bar = status line.** `<Terminal header>` snippet, right
+  of the title; the demo puts a `WorkspaceSwitcher variant="ghost"` there
+  and the tiling route lost its own header (columns/containers/legend —
+  the legend lives in the empty state, the rest is visible on the tiles).
+  Candidates for the app: service/connection dots (`StatusItem`), storage
+  sync state, the LLM model in use.
+- **Numbered selection:** `theme 2`, `wp 5`, `look 1` — 1-based
+  registration order, printed by the listings, same idiom as `ws <n>`.
 - **Previews:** `Command.preview(args) → Intent` is computed per keystroke
   and published as `shell.preview`; the workspace glows the target (cyan;
   danger when invalid), shows a hint pill (`w 2 → 4 · would overlap @5`),
   and draws a dashed ghost of the resulting rect — also for `#xp` before
   its container exists. `move`/`resize`/`spawn` share `peek*` functions
   with the previews, so preview and execution cannot disagree.
+- **Streaming primitives:** `ctx.print` returns a `LineHandle`, so a command
+  keeps mutating the line it printed instead of pushing new ones; a
+  submitted line's block is `running` until its command settles and is
+  never auto-folded or classified meanwhile; `Esc` aborts the running block
+  via `ctx.signal` (ahead of blurring the prompt, after closing an open
+  popup); and `kind: "prose"` lines render light inline markdown — bold,
+  inline code, fenced `beast`/`sh` command blocks, `@n`/`#id` refs — via
+  `proseSpans`, no LLM code involved.

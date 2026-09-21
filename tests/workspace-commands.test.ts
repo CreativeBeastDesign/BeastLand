@@ -5,7 +5,7 @@
  * This is the contract an app with its own data plugs into.
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import { runCommand, flagsFor, type CommandContext, type Span } from "$lib/shell/protocol.js";
+import { runCommand, flagsFor, type CommandContext, type LineHandle, type Span } from "$lib/shell/protocol.js";
 import { workspaceCommands, recordSuggestions } from "$lib/tiling/workspace-commands.js";
 import { kinds, type KindSpec } from "$lib/tiling/kinds.svelte.js";
 import { workspace } from "$lib/tiling/workspace.svelte.js";
@@ -52,13 +52,18 @@ const widgetKind: KindSpec = {
   ],
 };
 
+const noopHandle: LineHandle = { set: () => {}, append: () => {} };
+
 async function run(line: string): Promise<{ text: string; kind?: string }[]> {
   const lines: { text: string; kind?: string }[] = [];
   const ctx: CommandContext = {
-    print: (text, kind) =>
-      lines.push({ text: typeof text === "string" ? text : (text as Span[]).map((s) => s.text).join(""), kind }),
+    print: (text, kind) => {
+      lines.push({ text: typeof text === "string" ? text : (text as Span[]).map((s) => s.text).join(""), kind });
+      return noopHandle;
+    },
     clear: () => {},
     commands: workspaceCommands,
+    signal: new AbortController().signal,
   };
   await runCommand(line, workspaceCommands, ctx);
   return lines;

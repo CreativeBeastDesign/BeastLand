@@ -32,6 +32,7 @@
   import FeedbackAndChrome from "./sections/FeedbackAndChrome.svelte";
   import FormsAndData from "./sections/FormsAndData.svelte";
   import NavigationAndOverlays from "./sections/NavigationAndOverlays.svelte";
+  import MarkdownSection from "./sections/Markdown.svelte";
 
   // --- Section 4: notifications -------------------------------------------------
   type NotificationDatum = {
@@ -165,14 +166,14 @@
       <div class="hero__row">
         <span class="hero__row-label">Theme</span>
         <div class="hero__controls">
-          {#each shell.themeIds as id (id)}
+          {#each themes.all as theme (theme.id)}
             <Button
-              variant={shell.theme === id ? "accent" : "glass"}
+              variant={shell.theme === theme.id ? "accent" : "glass"}
               size="sm"
-              aria-pressed={shell.theme === id}
-              onclick={() => shell.setTheme(id)}
+              aria-pressed={shell.theme === theme.id}
+              onclick={() => shell.setTheme(theme.id)}
             >
-              {themes[id].label}
+              {theme.label}
             </Button>
           {/each}
         </div>
@@ -181,16 +182,16 @@
       <div class="hero__row">
         <span class="hero__row-label">Wallpaper</span>
         <div class="hero__controls">
-          {#each shell.wallpaperIds as id (id)}
+          {#each wallpapers.all as wallpaper (wallpaper.id)}
             <button
               class="wallpaper-thumb"
-              class:wallpaper-thumb--active={shell.wallpaper === id}
+              class:wallpaper-thumb--active={shell.wallpaper === wallpaper.id}
               type="button"
-              aria-pressed={shell.wallpaper === id}
-              title={wallpapers[id].label}
-              onclick={() => shell.setWallpaper(id)}
+              aria-pressed={shell.wallpaper === wallpaper.id}
+              title={wallpaper.label}
+              onclick={() => shell.setWallpaper(wallpaper.id)}
             >
-              <img src={wallpapers[id].src} alt={wallpapers[id].label} width="96" height="54" />
+              <img src={wallpaper.src} alt={wallpaper.label} width="96" height="54" />
             </button>
           {/each}
         </div>
@@ -427,7 +428,10 @@
   <div class="showcase__wide"><FormsAndData /></div>
   <div class="showcase__wide"><NavigationAndOverlays /></div>
 
-  <!-- 12. Templates -->
+  <!-- 12. Markdown -->
+  <div class="showcase__wide"><MarkdownSection /></div>
+
+  <!-- 13. Templates -->
   <div class="showcase__wide">
   <Window title="Templates" subtitle="DesktopShell & DashboardTemplate">
     <div class="template-grid">

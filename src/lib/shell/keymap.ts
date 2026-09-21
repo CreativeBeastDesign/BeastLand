@@ -38,7 +38,10 @@ export type Action =
   | "scroll-canvas-right"
   | "close"
   | "focus-terminal"
-  | "insert-ref";
+  | "insert-ref"
+  | "workspace-n" // `n` comes from the digit key, like select-n
+  | "workspace-next"
+  | "workspace-prev";
 
 export type KeyBinding = {
   action: Action;
@@ -80,6 +83,9 @@ export const defaultKeymap: KeyBinding[] = [
   { action: "focus-terminal", code: "Escape", key: "Escape", group: "terminal", description: "back to the terminal (Esc in the terminal leaves it)" },
   { action: "insert-ref", code: "", key: "@", group: "ref", description: "start a container / record reference in the terminal" },
   { action: "insert-ref", code: "", key: "#", group: "ref", description: "start a container / record reference in the terminal" },
+  { action: "workspace-n", code: "Digit", mod: true, shift: true, group: "workspace-n", description: "switch to workspace n" },
+  { action: "workspace-next", code: "KeyN", mod: true, shift: true, group: "workspace-cycle", description: "next / previous workspace" },
+  { action: "workspace-prev", code: "KeyP", mod: true, shift: true, group: "workspace-cycle", description: "next / previous workspace" },
 ];
 
 export type ResolvedKey = { action: Action; n?: number; key?: string };
@@ -100,8 +106,19 @@ export function resolveKey(event: KeyboardEvent, keymap: KeyBinding[], inText: b
       continue;
     }
     if (b.code === "Digit") {
-      const n = /^Digit([1-9])$/.exec(event.code)?.[1];
+      // `code` is layout-independent (⌃⇧1 is `!` or `+` in `key`); some
+      // synthetic/virtual keyboards leave it empty, so fall back to `key`.
+      const n = /^Digit([1-9])$/.exec(event.code)?.[1] ?? (event.code === "" ? /^[1-9]$/.exec(event.key)?.[0] : undefined);
       if (n) return { action: b.action, n: Number(n) };
+      continue;
+    }
+    // Letters match on `key`, not `code`: `code` is the physical US position,
+    // so on QWERTZ layouts the key labelled Z reports `KeyY`. Digits and
+    // named keys keep using `code` (⌃⇧1 is `!`/`+` in `key`).
+    const letter = /^Key([A-Z])$/.exec(b.code)?.[1];
+    if (letter !== undefined) {
+      if (event.key.length === 1 && event.key.toUpperCase() === letter) return { action: b.action };
+      if (event.key.length !== 1 && event.code === b.code) return { action: b.action };
       continue;
     }
     if (event.code === b.code) return { action: b.action };

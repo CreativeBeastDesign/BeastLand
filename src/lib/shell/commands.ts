@@ -7,9 +7,10 @@
  */
 
 import { shell } from "$lib/shell/state.svelte";
-import { themes, themeIds } from "$lib/theme/themes.js";
-import { wallpapers, wallpaperIds } from "$lib/wallpapers.js";
-import { parseArgs, type Command, type CommandContext, type FlagSpec, type Suggestion } from "./protocol.js";
+import { themes } from "$lib/theme/themes.svelte.js";
+import { looks } from "$lib/theme/looks.svelte.js";
+import { wallpapers } from "$lib/wallpapers.svelte.js";
+import { flag, parseArgs, type Command, type CommandContext, type FlagSpec, type Suggestion } from "./protocol.js";
 
 export * from "./protocol.js";
 
@@ -72,6 +73,21 @@ function printCommandHelp(command: Command, ctx: CommandContext) {
   }
 }
 
+/**
+ * `theme 2` / `wallpaper 2` / `look 2`: a number is the 1-based position in
+ * registration order (the same numbering `ws <n>` and the listings use);
+ * anything else is taken as an id.
+ */
+function byNumberOrId<T extends { id: string }>(all: readonly T[], arg: string): string {
+  if (/^\d+$/.test(arg)) return all[Number(arg) - 1]?.id ?? arg;
+  return arg;
+}
+
+/** `  * 2  garden-light — Garden Light` listing line, numbered like `ws`. */
+function numbered(index: number, active: boolean, id: string, label: string): string {
+  return `  ${active ? "*" : " "} ${String(index + 1).padStart(2)}  ${id} — ${label}`;
+}
+
 export const shellCommands: Command[] = [
   {
     name: "help",
@@ -121,24 +137,29 @@ export const shellCommands: Command[] = [
   {
     name: "theme",
     description: "Show or change the active theme",
-    usage: "theme [id|next]",
+    usage: "theme [id|n|next] [--keep-wallpaper]",
+    flags: [
+      {
+        name: "keep-wallpaper",
+        description: "Don't follow the theme's default wallpaper, if it has one",
+      },
+    ],
     complete: (args) => {
       if (args.length !== 1) return [];
       return [
-        ...themeIds.map((id) => ({ value: id, label: themes[id].label, kind: "value" as const })),
+        ...themes.all.map((t, i) => ({ value: t.id, label: t.label, description: String(i + 1), kind: "value" as const })),
         { value: "next", description: "Cycle to the next theme", kind: "value" as const },
       ];
     },
     run: (args, ctx) => {
-      const [arg] = args;
+      const parsed = parseArgs(args);
+      const [arg] = parsed.positional;
+      const keepWallpaper = flag(parsed, "keep-wallpaper") !== undefined;
 
       if (!arg) {
         ctx.print(`current theme: ${shell.theme}`, "output");
         ctx.print("available themes:", "output");
-        for (const id of themeIds) {
-          const marker = id === shell.theme ? "*" : " ";
-          ctx.print(`  ${marker} ${id} — ${themes[id].label}`, "output");
-        }
+        themes.all.forEach((t, i) => ctx.print(numbered(i, t.id === shell.theme, t.id, t.label), "output"));
         return;
       }
 
@@ -148,7 +169,7 @@ export const shellCommands: Command[] = [
         return;
       }
 
-      if (!shell.setTheme(arg)) {
+      if (!shell.setTheme(byNumberOrId(themes.all, arg), { keepWallpaper })) {
         ctx.print(`unknown theme: ${arg}`, "error");
         return;
       }
@@ -159,14 +180,14 @@ export const shellCommands: Command[] = [
     name: "wallpaper",
     aliases: ["wp"],
     description: "Show or change the active wallpaper",
-    usage: "wallpaper [id|next]",
+    usage: "wallpaper [id|n|next]",
     complete: (args) => {
       if (args.length !== 1) return [];
       return [
-        ...wallpaperIds.map((id) => ({
-          value: id,
-          label: wallpapers[id].label,
-          description: wallpapers[id].description,
+        ...wallpapers.all.map((w, i) => ({
+          value: w.id,
+          label: w.label,
+          description: `${i + 1}${w.description ? ` · ${w.description}` : ""}`,
           kind: "value" as const,
         })),
         { value: "next", description: "Cycle to the next wallpaper", kind: "value" as const },
@@ -176,28 +197,79 @@ export const shellCommands: Command[] = [
       const [arg] = args;
 
       if (!arg) {
+        if (wallpapers.all.length === 0) {
+          ctx.print("no wallpapers registered", "output");
+          return;
+        }
         ctx.print(`current wallpaper: ${shell.wallpaper}`, "output");
         ctx.print("available wallpapers:", "output");
-        for (const id of wallpaperIds) {
-          const marker = id === shell.wallpaper ? "*" : " ";
-          ctx.print(`  ${marker} ${id} — ${wallpapers[id].label}`, "output");
-        }
+        wallpapers.all.forEach((w, i) => ctx.print(numbered(i, w.id === shell.wallpaper, w.id, w.label), "output"));
         return;
       }
 
       if (arg === "next") {
         shell.nextWallpaper();
         const meta = shell.wallpaperMeta;
-        ctx.print(`wallpaper set to ${meta.label} — ${meta.description}`, "output");
+        ctx.print(`wallpaper set to ${meta.label}${meta.description ? ` — ${meta.description}` : ""}`, "output");
         return;
       }
 
-      if (!shell.setWallpaper(arg)) {
+      if (!shell.setWallpaper(byNumberOrId(wallpapers.all, arg))) {
         ctx.print(`unknown wallpaper: ${arg}`, "error");
         return;
       }
       const meta = shell.wallpaperMeta;
-      ctx.print(`wallpaper set to ${meta.label} — ${meta.description}`, "output");
+      ctx.print(`wallpaper set to ${meta.label}${meta.description ? ` — ${meta.description}` : ""}`, "output");
+    },
+  },
+  {
+    name: "look",
+    description: "Show or change the active look (a theme + wallpaper pair)",
+    usage: "look [list|id|n]",
+    subcommands: [{ name: "list", description: "List registered looks" }],
+    complete: (args) => {
+      if (args.length !== 1) return [];
+      return [
+        { value: "list", description: "List registered looks", kind: "subcommand" as const },
+        ...looks.all.map((l, i) => ({
+          value: l.id,
+          label: l.label,
+          description: `${i + 1}${l.description ? ` · ${l.description}` : ""}`,
+          kind: "value" as const,
+        })),
+      ];
+    },
+    run: (args, ctx) => {
+      const [arg] = args;
+
+      if (!arg) {
+        const current = shell.look;
+        if (current) {
+          const l = looks.get(current)!;
+          ctx.print(`current look: ${l.id} — ${l.label}`, "output");
+        } else {
+          ctx.print(`current look: custom (${shell.theme} + ${shell.wallpaper || "no wallpaper"})`, "output");
+        }
+        return;
+      }
+
+      if (arg === "list") {
+        if (looks.all.length === 0) {
+          ctx.print("no looks registered", "output");
+          return;
+        }
+        ctx.print("available looks:", "output");
+        looks.all.forEach((l, i) => ctx.print(numbered(i, l.id === shell.look, l.id, l.label), "output"));
+        return;
+      }
+
+      const id = byNumberOrId(looks.all, arg);
+      if (!shell.applyLook(id)) {
+        ctx.print(`unknown look: ${arg}`, "error");
+        return;
+      }
+      const l = looks.get(id)!;
+      ctx.print(`look set to ${l.id} — ${l.label}`, "output");
     },
   },
   {

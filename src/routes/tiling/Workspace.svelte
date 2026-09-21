@@ -6,7 +6,9 @@
   import { dataKinds } from "$lib/data/kinds.js";
   import { worklogCommands, worklogKind, registerDocumentExtras } from "$lib/worklog/index.js";
   import { projectCommands, projectKind, registerDocumentExtras as registerProjectDocumentExtras } from "$lib/project/index.js";
-  import TilingWorkspace, { MOD } from "$lib/components/organisms/TilingWorkspace.svelte";
+  import { settingsCommands, settingsKind } from "$lib/settings/index.js";
+  import { demoCommands } from "./demo-commands.js";
+  import TilingWorkspace from "$lib/components/organisms/TilingWorkspace.svelte";
   import { storage, toAsync, webStorage, memoryStorage, type AsyncStorageAdapter } from "$lib/shell/storage.js";
   import { browser } from "$app/environment";
   import { untrack } from "svelte";
@@ -33,11 +35,13 @@
   $effect(() => registry.register(tilingCommands));
   $effect(() => registry.register(worklogCommands));
   $effect(() => registry.register(projectCommands));
+  $effect(() => registry.register(settingsCommands));
+  $effect(() => registry.register(demoCommands));
 
   // Register the tile kinds this route knows, then drop containers whose
   // records vanished while we were away.
   $effect(() => {
-    const unregister = [...dataKinds, worklogKind, projectKind].map((k) => kinds.register(k));
+    const unregister = [...dataKinds, worklogKind, projectKind, settingsKind].map((k) => kinds.register(k));
     // prune() reads the registry; untrack so this effect doesn't subscribe to
     // the state it just wrote and loop.
     untrack(() => workspace.prune());
@@ -52,43 +56,15 @@
 </script>
 
 <div class="tiling-page">
-  <header class="tiling-page__header">
-    <span class="tiling-page__status">
-      tiling · {workspace.columns} columns · {workspace.containers.length} containers{
-        workspace.selectedId !== null ? ` · selected @${workspace.selectedId}` : ""
-      }
-    </span>
-    <span class="tiling-page__legend">
-      {MOD} hjkl select · {MOD}⇧ hjkl move · {MOD} u/i scroll · {MOD} 1-9 · {MOD} n/p · {MOD} q close · ⏎/esc terminal
-    </span>
-  </header>
-
   <TilingWorkspace />
 </div>
 
 <style>
   .tiling-page {
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: 1fr;
     height: 100%;
     min-height: 0;
     gap: var(--space-3);
-  }
-
-  .tiling-page__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-text-low);
-  }
-
-  .tiling-page__status,
-  .tiling-page__legend {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 </style>

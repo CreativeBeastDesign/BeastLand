@@ -1,7 +1,8 @@
-export { themes, themeIds, defaultTheme, getTheme, isThemeId } from "./themes.js";
+export { themes, themeIds, defaultTheme, getTheme, isThemeId, registerTheme } from "./themes.svelte.js";
+export { looks, registerLook, type Look } from "./looks.svelte.js";
 export type { Theme, ThemeId, ThemeMode, ThemeRegistry } from "./types.js";
 
-import { defaultTheme, getTheme, isThemeId } from "./themes.js";
+import { defaultTheme, themes } from "./themes.svelte.js";
 import type { Theme, ThemeId } from "./types.js";
 
 /**
@@ -16,7 +17,7 @@ export function applyTheme(
   themeId?: ThemeId | string,
   target: HTMLElement = document.documentElement,
 ): Theme {
-  const resolved = themeId !== undefined && isThemeId(themeId) ? getTheme(themeId) : defaultTheme;
+  const resolved = themeId !== undefined ? (themes.get(themeId) ?? defaultTheme()) : defaultTheme();
   target.setAttribute("data-theme", resolved.id);
   target.style.colorScheme = resolved.mode;
   return resolved;

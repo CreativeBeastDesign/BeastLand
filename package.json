@@ -49,5 +49,8 @@
 	},
 	"keywords": [
 		"svelte"
-	]
+	],
+	"dependencies": {
+		"marked": "^16.4.2"
+	}
 }

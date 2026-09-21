@@ -20,7 +20,7 @@
   {/if}
   <p class="empty-state__title">{title}</p>
   {#if description}
-    <p class="empty-state__description">{description}</p>
+    <p class="empty-state__description">{JSON.stringify(description)}</p>
   {/if}
   {#if actions}
     <div class="empty-state__actions">{@render actions()}</div>

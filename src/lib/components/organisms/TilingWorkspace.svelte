@@ -108,6 +108,9 @@
       case "close": if (selected !== null) workspace.close(selected); break;
       case "focus-terminal": handled = shell.focusTerminal(); break;
       case "insert-ref": handled = shell.insert(hit.key ?? "", false); break;
+      case "workspace-n": if (hit.n !== undefined) workspace.switch(hit.n); break;
+      case "workspace-next": workspace.next(); break;
+      case "workspace-prev": workspace.prev(); break;
     }
     // preventDefault only for handled keys: it also stops ⌥h inserting "˙"
     // and the readline bindings macOS gives text fields.

@@ -7,6 +7,12 @@
  * (0-based x/y, 1-based w/h). Containers never overlap: spawning uses
  * first-fit placement, moving into an occupied cell swaps with the occupant,
  * and a resize that would overlap is rejected.
+ *
+ * Multiple workspaces (Hyprland-style): the store holds a list of named
+ * `WorkspaceLayout`s and one `activeId`. Every existing container operation
+ * (`spawn`, `move`, `select`…) is a facade over the *active* layout, so a
+ * consumer that only ever knew one workspace keeps working unchanged.
+ * Container ids (`@n`) are per layout — each layout has its own `nextId`.
  */
 
 import type { Customer, Document } from "$lib/data/types.js";
@@ -35,6 +41,21 @@ export type Container = {
   y: number;
   w: number;
   h: number;
+};
+
+/**
+ * A named workspace: its own grid of containers, selection and `@n` counter.
+ * The terminal is shared across every layout — only the tiles switch.
+ */
+export type WorkspaceLayout = {
+  /** Stable identifier; not necessarily the display name once renamed. */
+  id: string;
+  /** Shown by `ws list`; auto-numbered ("2", "3"…) unless given explicitly. */
+  name: string;
+  containers: Container[];
+  selectedId: ContainerId | null;
+  /** This layout's own `@n` counter — every layout numbers containers from 1. */
+  nextId: number;
 };
 
 export type Direction = "up" | "down" | "left" | "right";
@@ -92,6 +113,24 @@ export type WorkspaceStore = {
   peekSpawn(size?: { w?: number; h?: number }): Rect;
   /** Where a container of `kind` would be spawned, at that kind's size. */
   peekSpawnFor(kind: ContentKind): Rect;
+
+  // -- Workspaces (multiple layouts; the above is a facade over `active`) --
+
+  /** Every layout, in creation order. */
+  readonly layouts: readonly WorkspaceLayout[];
+  readonly activeId: string;
+  readonly active: WorkspaceLayout;
+
+  /** Make a layout active. `idOrIndex` is a layout id/name, or a 1-based index (Hyprland-style). */
+  switch(idOrIndex: string | number): boolean;
+  /** Create a layout (auto-named "2", "3"… unless `name` is given) and make it active. */
+  create(name?: string): WorkspaceLayout;
+  rename(id: string, name: string): boolean;
+  /** Remove a layout; refuses the last remaining one. Switches to a neighbour if it was active. */
+  remove(id: string): boolean;
+  /** Cycle to the next / previous layout (wraps). */
+  next(): void;
+  prev(): void;
 };
 
 /** Public surface of `$lib/data/store.svelte.ts`. */

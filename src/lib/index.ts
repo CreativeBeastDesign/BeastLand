@@ -53,6 +53,7 @@ export * from "$lib/wallpapers.js";
 export { shell } from "$lib/shell/state.svelte.js";
 export * from "$lib/shell/commands.js";
 export * from "$lib/shell/completion.js";
+export { proseSpans } from "$lib/shell/prose.js";
 export { registry } from "$lib/shell/registry.svelte.js";
 export {
   storage,
@@ -113,6 +114,17 @@ export { projectKind } from "$lib/project/kind.js";
 export { projectCommands } from "$lib/project/commands.js";
 export { registerDocumentExtras as registerProjectDocumentExtras } from "$lib/project/index.js";
 
+// Settings (registry + tile + the shipped Appearance section) and the dumb pickers
+export { default as SettingsTile } from "$lib/components/tiles/SettingsTile.svelte";
+export { settings, settingsKind, settingsCommands, SETTINGS_CONTENT_ID, type SettingsSection } from "$lib/settings/index.js";
+export { default as AppearanceSection } from "$lib/settings/AppearanceSection.svelte";
+export { default as ThemePicker } from "$lib/components/molecules/ThemePicker.svelte";
+export { default as WallpaperPicker } from "$lib/components/molecules/WallpaperPicker.svelte";
+export { default as LookPicker } from "$lib/components/molecules/LookPicker.svelte";
+// Markdown
+export { default as Markdown } from "$lib/components/molecules/Markdown.svelte";
+export { parseMarkdown } from "$lib/markdown/parse.js";
+export { splitRefs, isRunnableFence, type TextPart, type RefPart } from "$lib/markdown/refs.js";
 // Stylesheets are imported separately by the consumer, in this order:
 //   $lib/styles/fonts.css               Illinois Mono @font-face (Lexend comes from Google Fonts)
 //   $lib/styles/tokens/base.css

@@ -17,8 +17,13 @@ and open items live in [Roadmap.md](Roadmap.md).
 - [Prefix commands (`@2`, `#xp`)](#prefix-commands-2-xp)
 - [Previews](#previews)
 - [Output](#output)
+  - [Streaming](#streaming)
 - [Driving the terminal from elsewhere](#driving-the-terminal-from-elsewhere)
 - [Wiring UI components to the shell](#wiring-ui-components-to-the-shell)
+- [Markdown](#markdown)
+- [Themes, wallpapers, looks](#themes-wallpapers-looks)
+- [Settings](#settings)
+- [Workspaces](#workspaces)
 - [Keymap](#keymap)
 - [Storage](#storage)
 - [Using the terminal without the dispatcher](#using-the-terminal-without-the-dispatcher)
@@ -272,7 +277,7 @@ ctx.print([
 ]);
 ```
 
-Tones: `id`, `id-rest`, `key`, `muted`, `accent`, `bold`. A span with
+Tones: `id`, `id-rest`, `key`, `muted`, `accent`, `bold`, `code`. A span with
 `command` becomes a button; attach only navigational commands to clicks,
 never destructive ones.
 
@@ -291,6 +296,53 @@ notify({ title: "Deployed", message: "v1.4.2 → prod", tone: "success" });   //
 ```
 
 `<ToastStack />` must be mounted once (your root layout).
+
+### Streaming
+
+`ctx.print` returns a `LineHandle`, the primitive a streaming command (an
+LLM answer, a progress line…) needs to keep mutating the line it just
+printed instead of pushing a new one every tick:
+
+```ts
+run: async (args, ctx) => {
+  const handle = ctx.print("", "output");
+  for await (const delta of answer(args, ctx.signal)) handle.append(delta);
+},
+```
+
+`handle.set(text | spans)` replaces the line's content in place (`kind`
+stays whatever it was printed with); `handle.append(delta)` grows the text,
+and the last span's text when the line carries spans. Neither pushes a new
+line, so a stream never re-triggers scroll-to-bottom or the live-region
+announcement — those fire once, when the block finishes.
+
+The block a streaming command is printing into stays open (`running: true`)
+until `run` resolves or rejects; its prompt glyph pulses meanwhile and it is
+never auto-folded or given a `kind` (`ack`/`data`/`error`) until it's done.
+`ctx.signal` is an `AbortSignal`, one per submitted line: **Esc cancels the
+block currently running** (ahead of "Esc blurs the prompt", but after
+dismissing an open completion popup), and every still-running block is
+aborted when the Terminal unmounts. Pass `ctx.signal` straight to `fetch`,
+or check `signal.aborted` in a manual loop; when `run` rejects with an error
+whose `name` is `"AbortError"` the Terminal prints `cancelled` (a muted
+`system` line) instead of treating it as a command failure.
+
+For prose rather than terminal-style output — the shape an LLM answer is in
+— print with `kind: "prose"`: UI font (Lexend), normal wrapping, no
+`white-space: pre` feel. Build its spans with `proseSpans(text)`
+(`$lib/shell/prose.js`), which understands `**bold**`, `` `inline code` ``
+(mono), fenced ``` blocks (mono/pre — the info string `beast` or `sh` makes
+each non-empty line inside a runnable command span, exactly like any other
+clickable output), and `@12`/`#xp` refs turned into clickable `id` spans. It
+is not a markdown renderer — no nesting, no lists, no links — just enough to
+make a streamed answer readable:
+
+```ts
+handle.set(proseSpans(sofar));
+```
+
+See `src/routes/tiling/demo-commands.ts` (`stream`, `stream --prose`) for a
+full example, including cancellation and a mid-stream failure.
 
 ## Driving the terminal from elsewhere
 
@@ -323,6 +375,130 @@ an `oncommand` callback; pass the bridge:
 
 <RecordView fields={fields} oncommand={commandBridge} />   <!-- (command, "run" | "insert") -->
 <Menu items={items} oncommand={runBridge} … />              <!-- (command) -->
+```
+
+## Markdown
+
+`<Markdown source={text} />` renders a Markdown document safe by
+construction — no sanitizer, no `{@html}` anywhere. `parseMarkdown`
+(`$lib/markdown/parse.js`) hands back [marked](https://github.com/markedjs/marked)'s
+token tree and `Markdown.svelte` renders every token through a Svelte
+snippet, so text is always Svelte's own escaped interpolation. A raw inline
+HTML tag shows up literally; a raw HTML *block* is dropped.
+
+```svelte
+<script lang="ts">
+  import { Markdown, commandBridge } from "beastland";
+</script>
+
+<Markdown source={doc} oncommand={commandBridge} />
+```
+
+GFM: headings (`h1`–`h4`, no ids), paragraphs, **bold**/*em*/~~del~~, inline
+code, fenced code, nested lists and task items (disabled checkboxes), tables
+(numeric columns right-align with tabular figures), blockquotes, `hr`,
+links. Refs (`@12`, `#xp`) in text and every non-empty line of a `beast`/`sh`
+fence behave like the Terminal's prose lines: click runs through
+`oncommand`, ⇧-click inserts. Without `oncommand` they are inert text.
+
+Deliberately not rendered: images (`![alt](src)` becomes a link — a
+document in a tile must not trigger remote loads) and raw HTML blocks.
+`highlight?: (code, lang) => Array<{ text, tone? }> | string` plugs a syntax
+highlighter into non-runnable fences (a span's `tone` maps to
+`--md-hl-<tone>`); the kit ships none. `compact` tightens spacing for tiles.
+
+## Themes, wallpapers, looks
+
+Themes and wallpapers are runtime registries, not static lists: an app
+registers its own next to (or instead of) the shipped ones and every picker
+updates when it does.
+
+```ts
+import { registerTheme, registerWallpaper, registerLook } from "beastland";
+
+registerWallpaper({ id: "sunset", label: "Sunset", src: "https://cdn…/sunset.jpg" });
+registerTheme({ id: "sunset-theme", label: "Sunset", mode: "dark", glass: true, wallpaper: "sunset" });
+registerLook({ id: "evening", label: "Evening", theme: "sunset-theme", wallpaper: "sunset" });
+```
+
+The library ships five themes (`beast-dark`, `garden-light`, `hypr-dark`,
+`hypr-light`, `tokyo-glass`; their CSS under `beastland/styles/themes/*`)
+and **no wallpapers** — bring your own images and register them at module
+scope before the shell renders, the way `src/routes/+layout.svelte` does.
+`themeIds()`, `defaultTheme()`, `wallpaperIds()`, `defaultWallpaper()` are
+functions (Svelte forbids exporting derived state from a module).
+
+A `Theme` may name a default `wallpaper`; `shell.setTheme(id)` follows it
+unless you pass `{ keepWallpaper: true }`. A **look** is a named
+`(theme, wallpaper)` pair: `shell.look` is derived — the matching look's id
+or `null` for a custom combination — and `shell.applyLook(id)` sets both.
+Nothing new is persisted. Persisted ids are resolved lazily (the store
+hydrates before your registrations run), so an unknown id falls back to the
+default at read time rather than being dropped.
+
+Commands: `theme [id|n|next] [--keep-wallpaper]`, `wallpaper [id|n|next]`
+(alias `wp`), `look [list|id|n]`. A number is the 1-based registration
+position the listings print (`wp 5` ≡ `wp adler`), same numbering as `ws`.
+
+## Settings
+
+`settings.register({ id, label, component, order?, description? })` adds a
+tab to the Settings tile — the same registration pattern as kinds and
+commands. The library ships one section, *Appearance* (look/theme/wallpaper
+pickers), registered automatically. Open the tile with `settings` (alias
+`prefs`; `settings <section-id>` selects a tab) or
+`workspace.open("settings", SETTINGS_CONTENT_ID)`. The tile is a singleton
+kind (`settingsKind`); register it and `settingsCommands` in your route like
+any slice.
+
+```ts
+$effect(() => settings.register({ id: "billing", label: "Billing", component: BillingSection }));
+```
+
+The pickers (`ThemePicker`, `WallpaperPicker`, `LookPicker`) are dumb UI-kit
+molecules — data in, `onchange` out — usable outside the tile.
+
+## Workspaces
+
+Hyprland-style: several numbered workspaces, each with its own tiles; the
+terminal is shared. Everything `workspace` already had (`containers`,
+`spawn`, `move`, `select`…) is a facade over the *active* layout, so
+existing code keeps working; `@n` ids are per layout.
+
+```ts
+workspace.layouts;                  // every layout, in creation order
+workspace.activeId;                 // and `workspace.active`
+workspace.switch(2);                // 1-based index, like Hyprland — or an id/name
+workspace.create("office");         // auto-named "2", "3"… without a name
+workspace.rename(id, "home");
+workspace.remove(id);               // refuses the last one
+workspace.next(); workspace.prev();
+```
+
+`ws` is the command: `ws` / `ws list` (active starred, container counts,
+clickable), `ws <n|name>`, `ws new [name]`, `ws rename <name>`, `ws rm [n]`,
+`ws next`/`ws prev`. It ships inside `containerCommands`, so
+`workspaceCommands` and `tilingCommands` have it. Keys: `⌃⇧1`–`⌃⇧9` switch,
+`⌃⇧n`/`⌃⇧p` cycle (one modifier up from container selection).
+`<WorkspaceSwitcher workspaces activeId onchange variant="ghost">` is the
+dumb UI piece; the demo puts it in the Terminal's title bar through the
+`header` snippet (see below).
+
+Persisted as `beastland:workspaces` `{ layouts, activeId }`, migrated
+automatically from the pre-workspaces `beastland:workspace` key. Give the
+terminal per-workspace ↑↓ history with `<Terminal historyKey={workspace.activeId} />`
+(`beastland:history:<key>`, capped at 200).
+
+The Terminal's title bar is the shell's status line: pass a `header`
+snippet and it renders right of the title. The Terminal knows nothing about
+workspaces or services — the app decides what goes there.
+
+```svelte
+<Terminal historyKey={workspace.activeId}>
+  {#snippet header()}
+    <WorkspaceSwitcher variant="ghost" workspaces={…} activeId={workspace.activeId} onchange={(id) => workspace.switch(id)} />
+  {/snippet}
+</Terminal>
 ```
 
 ## Keymap
@@ -443,8 +619,9 @@ free. If you truly need the raw line, the escape hatch exists:
 ```
 
 `onsubmit` also fires *with* dispatch on, which is handy for logging.
-Instance methods: `print(text | spans, kind?, opts?)`, `clear()`. You can
-also pass an explicit `commands` prop to bypass the registry entirely.
+Instance methods: `print(text | spans, kind?, opts?)` (returns a
+`LineHandle`, see [Streaming](#streaming)), `clear()`. You can also pass an
+explicit `commands` prop to bypass the registry entirely.
 
 ## Reference
 
@@ -466,18 +643,23 @@ type Command = {
 type FlagSpec = { name; short?; description; takesValue?; values?: string[] | (() => string[]) };
 type Suggestion = { value; label?; description?; kind?: "command" | "subcommand" | "flag" | "value"; boost? };
 type Intent = { target?; hint?; ghost?: { x; y; w; h }; invalid? };
-type Span = { text; tone?: "id" | "id-rest" | "key" | "muted" | "accent" | "bold"; command? };
+type Span = { text; tone?: "id" | "id-rest" | "key" | "muted" | "accent" | "bold" | "code"; command? };
+
+/** Returned by `ctx.print` — see Output → Streaming. */
+type LineHandle = { set(text: string | Span[]): void; append(delta: string): void };
 
 type CommandContext = {
-  print: (text: string | Span[], kind?: "output" | "error" | "system", opts?: { hang?: number }) => void;
+  print: (text: string | Span[], kind?: "output" | "error" | "system" | "prose", opts?: { hang?: number }) => LineHandle;
   clear: () => void;
   commands: Command[];
+  /** Aborted on Esc (while this line's block is running) or on unmount. */
+  signal: AbortSignal;
 };
 ```
 
 Helpers exported from the package: `parseArgs`, `flag`, `tokenize`,
 `matchCommand`, `previewFor`, `knownFlags`, `flagsFor`, `runCommand`,
-`candidatesFor`, `applySuggestion`, `fuzzyScore`, `rank`.
+`candidatesFor`, `applySuggestion`, `fuzzyScore`, `rank`, `proseSpans`.
 
 ### Beyond commands
 

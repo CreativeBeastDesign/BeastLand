@@ -1,9 +1,11 @@
 <!-- src/lib/components/organisms/Terminal.svelte -->
 
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack, type Snippet } from "svelte";
   import {
     type Command,
+    type CommandContext,
+    type LineHandle,
     type OutputLine,
     type PrintOptions,
     type Span,
@@ -16,10 +18,12 @@
   import { candidatesFor, applySuggestion, splitInput } from "$lib/shell/completion.js";
   import { registry } from "$lib/shell/registry.svelte.js";
   import { shell } from "$lib/shell/state.svelte.js";
+  import { storage } from "$lib/shell/storage.js";
   import { overflowFade } from "$lib/actions/overflowFade.js";
 
   type Props = {
     title?: string;
+    indicators?: Snippet;
     commands?: Command[];
     motd?: string[];
     prompt?: string;
@@ -42,10 +46,24 @@
      * `onsubmit` + the exported `print`/`clear` instance methods.
      */
     dispatch?: boolean;
+    /**
+     * When set, ↑/↓ input history persists through `storage` under
+     * `beastland:history:<historyKey>` (capped at 200 entries) and reloads
+     * whenever the key changes — e.g. `historyKey={workspace.activeId}` for
+     * a history per workspace. Without it, history stays in memory only.
+     */
+    historyKey?: string;
+    /**
+     * Rendered in the title bar, right of the title: the shell's status line.
+     * The app passes what belongs there (a workspace switcher, service
+     * status dots); the Terminal itself knows nothing about workspaces.
+     */
+    header?: Snippet;
   };
 
   let {
     title = "beastland",
+    indicators,
     commands,
     motd = ["Welcome to BeastLand.", "Type `help` to get started."],
     prompt = "❯",
@@ -53,6 +71,8 @@
     focusWidth,
     onsubmit,
     dispatch = true,
+    historyKey,
+    header,
   }: Props = $props();
 
   // Explicit `commands` prop wins; otherwise follow the shared registry so
@@ -71,6 +91,13 @@
     collapsed: boolean;
     kind: "ack" | "data" | "error";
     selected?: boolean;
+    /**
+     * True from the moment a submitted line's command starts running until
+     * it resolves (or rejects). A running block is never auto-folded and its
+     * `kind` stays whatever it was seeded with — `blockKind` only runs once
+     * the command is done — so its prompt glyph can pulse in the meantime.
+     */
+    running: boolean;
   };
 
   /** Classify a finished block's lines: any error wins, then ack vs data. */
@@ -87,14 +114,58 @@
       lines: motd.map((text): OutputLine => ({ kind: "system", text })),
       collapsed: false,
       kind: "data",
+      running: false,
     },
   ]);
   let nextBlockId = 1;
+
+  // One AbortController per submitted line, keyed by block id, for as long as
+  // it's running. Plain (non-reactive) — only `Block.running` drives the UI.
+  const controllers = new Map<number, AbortController>();
 
   let input = $state("");
   let history = $state<string[]>([]);
   let historyIndex = $state(0);
   let selectedBlockId = $state<number | null>(null);
+
+  const HISTORY_CAP = 200;
+
+  function historyStorageKey(key: string): string {
+    return `beastland:history:${key}`;
+  }
+
+  /** Read persisted history for `key`, or `[]` when unset/absent/malformed. */
+  function loadHistory(key: string | undefined): string[] {
+    if (!key) return [];
+    try {
+      const stored = storage.getJson<string[]>(historyStorageKey(key));
+      return Array.isArray(stored) ? stored.slice(-HISTORY_CAP) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function persistHistory(key: string | undefined, value: string[]) {
+    if (!key) return;
+    try {
+      storage.setJson(historyStorageKey(key), value.slice(-HISTORY_CAP));
+    } catch {
+      /* storage may be unavailable; the in-memory history still works */
+    }
+  }
+
+  // Reload history whenever `historyKey` changes (including its first set).
+  // Without the prop this never fires past the initial no-op, so history
+  // stays purely in-memory, matching the old behaviour.
+  $effect(() => {
+    const loaded = loadHistory(historyKey);
+    // Only `historyKey` is a dependency: writing `history` (and reading its
+    // length) inside a tracked scope would re-run this effect on every push.
+    untrack(() => {
+      history = loaded;
+      historyIndex = loaded.length;
+    });
+  });
 
   let suggestions = $state<Suggestion[]>([]);
   let suggestionIndex = $state(0);
@@ -124,34 +195,75 @@
     }
   }
 
-  /** Derive & lock in the last block's kind, then fold older `data` blocks. */
-  function finalizeLastBlock() {
-    if (blocks.length === 0) return;
-    const idx = blocks.length - 1;
-    const block = blocks[idx];
+  /** Derive & lock in a finished block's kind, then fold older `data` blocks. */
+  function finalizeBlock(block: Block) {
     if (block.input === undefined) return; // motd/system block: never derived
 
     block.kind = blockKind(block.lines);
 
     // Only a newer *data* block folds older data away: an ack (`@1 -w 3`)
-    // or an error must not hide the list the user is acting on.
+    // or an error must not hide the list the user is acting on, and a block
+    // still streaming is left alone regardless of how many lines it has.
     if (block.kind !== "data") return;
+    const idx = blocks.findIndex((b) => b.id === block.id);
     for (let i = 0; i < idx; i++) {
       const older = blocks[i];
-      if (older.input !== undefined && older.kind === "data") older.collapsed = true;
+      if (older.input !== undefined && older.kind === "data" && !older.running) older.collapsed = true;
     }
   }
 
-  /** Finish the current block and open a new one for `inputValue`. */
-  function openBlock(inputValue?: string) {
-    finalizeLastBlock();
-    blocks.push({
+  /** Open a new block for `inputValue` and return it (the ctx of that line targets it). */
+  function openBlock(inputValue?: string): Block {
+    const block: Block = {
       id: nextBlockId++,
       input: inputValue,
       lines: [],
       collapsed: false,
       kind: "ack",
-    });
+      running: false,
+    };
+    blocks.push(block);
+    // Read back through the reactive array: Svelte wraps pushed objects in
+    // its own proxy, and only that proxy's mutations are tracked — mutating
+    // the local `block` reference later would not update the UI.
+    return blocks[blocks.length - 1];
+  }
+
+  const noopHandle: LineHandle = { set: () => {}, append: () => {} };
+
+  /** Wrap a just-pushed `OutputLine` as the handle `ctx.print` returns. */
+  function lineHandle(line: OutputLine): LineHandle {
+    return {
+      set(text) {
+        if (typeof text === "string") {
+          line.text = text;
+          line.spans = undefined;
+        } else {
+          line.text = text.map((s) => s.text).join("");
+          line.spans = text;
+        }
+      },
+      append(delta) {
+        line.text += delta;
+        if (line.spans && line.spans.length > 0) line.spans[line.spans.length - 1].text += delta;
+      },
+    };
+  }
+
+  /** Push an output line onto `block` and return a handle to keep mutating it. */
+  function appendLine(
+    block: Block,
+    text: string | Span[],
+    kind: OutputLine["kind"],
+    opts?: PrintOptions,
+  ): LineHandle {
+    const line: OutputLine =
+      typeof text === "string"
+        ? { kind, text }
+        : { kind, text: text.map((s) => s.text).join(""), spans: text };
+    if (opts?.hang) line.hang = opts.hang;
+    const len = block.lines.push(line);
+    return lineHandle(block.lines[len - 1]); // same reasoning as openBlock: reread the proxy
   }
 
   /** Append an output line. Accepts plain text or styled spans. Instance method. */
@@ -159,21 +271,15 @@
     text: string | Span[],
     kind: OutputLine["kind"] = "output",
     opts?: PrintOptions,
-  ) {
+  ): LineHandle {
     if (kind === "input") {
       // Kept for API stability; no longer used internally (see `submitLine`).
       openBlock(typeof text === "string" ? text : text.map((s) => s.text).join(""));
-      return;
+      return noopHandle;
     }
 
-    if (blocks.length === 0) openBlock();
-
-    const line: OutputLine =
-      typeof text === "string"
-        ? { kind, text }
-        : { kind, text: text.map((s) => s.text).join(""), spans: text };
-    if (opts?.hang) line.hang = opts.hang;
-    blocks[blocks.length - 1].lines.push(line);
+    const block = blocks.length === 0 ? openBlock() : blocks[blocks.length - 1];
+    return appendLine(block, text, kind, opts);
   }
 
   /** Clear the output buffer. Instance method. */
@@ -183,13 +289,17 @@
     selectedBlockId = null;
   }
 
-  const ctx = {
-    print,
-    clear,
-    get commands() {
-      return activeCommands;
-    },
-  };
+  /** Build the ctx a submitted line's command runs with: prints target `block`. */
+  function makeContext(block: Block, signal: AbortSignal): CommandContext {
+    return {
+      print: (text, kind = "output", opts) => appendLine(block, text, kind, opts),
+      clear,
+      get commands() {
+        return activeCommands;
+      },
+      signal,
+    };
+  }
 
   /** Shared submit path for Enter, span clicks, and history re-runs. */
   function scrollToBottom() {
@@ -198,19 +308,53 @@
     });
   }
 
+  function abortError(): DOMException {
+    return new DOMException("cancelled", "AbortError");
+  }
+
+  /** Escape while a block is running cancels it. The most recently opened wins. */
+  function abortRunningBlock(): boolean {
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      const block = blocks[i];
+      if (!block.running) continue;
+      controllers.get(block.id)?.abort(abortError());
+      return true;
+    }
+    return false;
+  }
+
   async function submitLine(value: string) {
-    openBlock(value);
+    const block = openBlock(value);
     scrollToBottom();
 
-    if (value.trim()) history.push(value);
+    if (value.trim()) {
+      history.push(value);
+      if (history.length > HISTORY_CAP) history = history.slice(-HISTORY_CAP);
+      persistHistory(historyKey, history);
+    }
     historyIndex = history.length;
     input = "";
     shell.setPreview(null);
 
     onsubmit?.(value);
-    if (dispatch) await runCommand(value, activeCommands, ctx);
-    finalizeLastBlock();
-    announceBlock(blocks[blocks.length - 1]);
+
+    if (dispatch) {
+      block.running = true;
+      const controller = new AbortController();
+      controllers.set(block.id, controller);
+      try {
+        await runCommand(value, activeCommands, makeContext(block, controller.signal));
+      } catch (err) {
+        const aborted = err instanceof Error && err.name === "AbortError";
+        appendLine(block, aborted ? "cancelled" : err instanceof Error ? err.message : String(err), aborted ? "system" : "error");
+      } finally {
+        controllers.delete(block.id);
+        block.running = false;
+      }
+    }
+
+    finalizeBlock(block);
+    announceBlock(block);
     scrollToBottom();
   }
 
@@ -338,6 +482,9 @@
 
     if (event.key === "Escape") {
       event.preventDefault();
+      // Priority: dismiss the popup (handled above, already returned) >
+      // cancel a running block > deselect a walked-to block > blur.
+      if (abortRunningBlock()) return;
       if (selectedBlockId !== null) {
         selectedBlockId = null;
         return;
@@ -379,6 +526,9 @@
     return () => {
       unregisterFocus();
       unregisterRun();
+      // Don't leave a streaming `fetch`/loop running after the Terminal is gone.
+      for (const controller of controllers.values()) controller.abort(abortError());
+      controllers.clear();
     };
   });
 
@@ -466,12 +616,19 @@
 >
 <div class="terminal__panel grain">
   <header class="terminal__header">
-    <span class="terminal__dots" aria-hidden="true">
-      <span class="terminal__dot terminal__dot--danger"></span>
-      <span class="terminal__dot terminal__dot--warning"></span>
-      <span class="terminal__dot terminal__dot--success"></span>
-    </span>
-    <span class="terminal__title">{title}</span>
+    {#if indicators}
+      <span class="terminal__header-slot">{@render indicators()}</span>
+    {:else}
+      <span class="terminal__dots" aria-hidden="true">
+        <span class="terminal__dot terminal__dot--danger"></span>
+        <span class="terminal__dot terminal__dot--warning"></span>
+        <span class="terminal__dot terminal__dot--success"></span>
+      </span>
+      <span class="terminal__title">{title}</span>
+    {/if}
+    {#if header}
+      <span class="terminal__header-slot">{@render header()}</span>
+    {/if}
   </header>
 
   <span class="terminal__sr-only" aria-live="polite" aria-atomic="true">{politeAnnouncement}</span>
@@ -498,7 +655,11 @@
             aria-label={`${block.input}${block.lines[0] ? `, ${block.lines[0].text}` : ""}`}
             onclick={(event) => handleHeadClick(event, block)}
           >
-            <span class="terminal__prompt-glyph" aria-hidden="true">{prompt}</span>
+            <span
+              class="terminal__prompt-glyph"
+              class:terminal__prompt-glyph--running={block.running}
+              aria-hidden="true">{prompt}</span
+            >
             <span class="terminal__block-input">{block.input}</span>
             {#if block.lines[0]}
               <span class="terminal__ack-output">→ {block.lines[0].text}</span>
@@ -515,6 +676,7 @@
             <span
               class="terminal__prompt-glyph terminal__prompt-glyph--toggle"
               class:terminal__prompt-glyph--expanded={!block.collapsed}
+              class:terminal__prompt-glyph--running={block.running}
               aria-hidden="true">{prompt}</span
             >
             <span class="terminal__block-input">{block.input}</span>
@@ -694,6 +856,14 @@
     background: var(--color-success);
   }
 
+  .terminal__header-slot {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
   .terminal__title {
     font-size: var(--text-xs);
     color: var(--color-text-low);
@@ -813,6 +983,20 @@
 
   .terminal__line[data-kind="error"] {
     color: var(--color-danger);
+  }
+
+  /* Prose lines (streamed answers, longer explanations): UI font, normal
+     line-height, no monospace pre feel — the default `.terminal__line`
+     white-space: pre-wrap already gives normal wrapping and keeps fenced
+     `code` spans' newlines intact. */
+  .terminal__line[data-kind="prose"] {
+    font-family: var(--font-ui);
+    line-height: 1.65;
+  }
+
+  .terminal__span[data-tone="code"] {
+    font-family: var(--font-mono);
+    color: var(--color-text-high);
   }
 
   .terminal__span[data-tone="id"] {
@@ -962,6 +1146,28 @@
 
   .terminal__prompt-glyph--expanded {
     transform: rotate(90deg);
+  }
+
+  /* Subtle "still working" cue for a block whose command hasn't resolved yet. */
+  .terminal__prompt-glyph--running {
+    animation: terminal-pulse 1.4s var(--ease-in-out) infinite;
+  }
+
+  @keyframes terminal-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .terminal__prompt-glyph--running {
+      animation: none;
+      opacity: 0.7;
+    }
   }
 
   .terminal__field {

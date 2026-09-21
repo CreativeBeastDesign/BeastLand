@@ -3,21 +3,27 @@
  *
  * The record-agnostic half of the tiling terminal: `@n …` and `#id …` prefix
  * commands (select / open / move / resize / close / retitle / `set`), `ls`,
- * `close`, `reset --layout`, plus the print helpers other command groups
- * reuse. Nothing here knows a customer from a document — everything
- * kind-specific comes from the kind registry (`KindSpec.label/ids/view/
- * set/actions`). Register with `registry.register(workspaceCommands)` and
- * your own kinds; `$lib/tiling/commands.ts` is the demo CRM on top of it.
+ * `close`, `ws` (switch/list/manage workspaces), `reset --layout`, plus the
+ * print helpers other command groups reuse. Nothing here knows a customer
+ * from a document — everything kind-specific comes from the kind registry
+ * (`KindSpec.label/ids/view/set/actions`). Register with
+ * `registry.register(workspaceCommands)` and your own kinds;
+ * `$lib/tiling/commands.ts` is the demo CRM on top of it.
  *
  * `@2 …` and `#xp …` are prefix commands (see `Command.match`): once the
  * target container is resolved, any trailing args are handed to the same
  * `applyContainerArgs` dispatcher, so `#xp set --city Bern` and `@2 set
  * --city Bern` behave identically.
+ *
+ * `ws` addresses *layouts*, not containers — `@n`/`#id` always act on the
+ * active one. It lives in `containerCommands` (not split out) so every
+ * bundle built on top (`workspaceCommands`, the demo's `tilingCommands`)
+ * gets workspace switching for free, the same way `ls`/`close` do.
  */
 
 import { workspace } from "./workspace.svelte.js";
 import { shortId } from "./ids.js";
-import type { Container, Direction } from "./types.js";
+import type { Container, Direction, WorkspaceLayout } from "./types.js";
 import { kinds } from "./kinds.svelte.js";
 import { fieldsAt, type FieldDef, type Level, type ViewRow } from "./views.js";
 import {
@@ -716,8 +722,132 @@ const layoutResetCommand: Command = {
   },
 };
 
-/** The record-agnostic container commands: `@n`, `#id`, `ls`, `close`. */
-export const containerCommands: Command[] = [atCommand, hashCommand, lsCommand, closeCommand];
+// ---------------------------------------------------------------------------
+// ws — switch / list / manage workspaces (layouts). Hyprland semantics: each
+// workspace is its own grid of containers; the terminal is shared.
+// ---------------------------------------------------------------------------
+
+const wsSubcommands: SubcommandSpec[] = [
+  { name: "list", aliases: ["ls"], description: "List workspaces" },
+  { name: "new", description: "Create a workspace" },
+  { name: "rename", description: "Rename the active workspace" },
+  { name: "rm", description: "Remove a workspace" },
+  { name: "next", description: "Switch to the next workspace" },
+  { name: "prev", description: "Switch to the previous workspace" },
+];
+
+const wsVerbs = new Set(wsSubcommands.map((s) => s.name));
+
+/** `1` / `2`… / a layout name → the layout, or undefined. */
+function resolveLayout(token: string): WorkspaceLayout | undefined {
+  const n = Number(token);
+  if (Number.isInteger(n) && n >= 1) {
+    const byIndex = workspace.layouts[n - 1];
+    if (byIndex) return byIndex;
+  }
+  return workspace.layouts.find((l) => l.id === token) ?? workspace.layouts.find((l) => l.name === token);
+}
+
+/** `ws` / `ws list`: active starred, container count each, `ws <n>` clickable. */
+function printLayouts(ctx: CommandContext) {
+  const rows = workspace.layouts.map((l, i) => ({ l, index: i + 1 }));
+  const refWidth = Math.max(...rows.map(({ index }) => `ws ${index}`.length));
+  const nameWidth = Math.max(...rows.map(({ l }) => l.name.length));
+  for (const { l, index } of rows) {
+    const count = l.containers.length;
+    ctx.print(
+      [
+        { text: l.id === workspace.activeId ? "* " : "  " },
+        { text: `ws ${index}`.padEnd(refWidth + 2), tone: "accent", command: `ws ${index}` },
+        { text: l.name.padEnd(nameWidth + 2) },
+        { text: `${count} container${count === 1 ? "" : "s"}`, tone: "muted" },
+      ],
+      "output",
+    );
+  }
+}
+
+const wsCommand: Command = {
+  name: "ws",
+  aliases: ["workspace"],
+  description: "Switch, list, or manage workspaces",
+  usage: "ws [list|new [name]|rename <name>|rm [n]|next|prev|<n|name>]",
+  subcommands: wsSubcommands,
+  complete: (args) => {
+    // `ws <partial>` and `ws rm <partial>` both address a layout.
+    const wantsLayout = args.length === 1 || (args.length === 2 && args[0] === "rm");
+    if (!wantsLayout) return [];
+    return workspace.layouts.map((l, i) => ({
+      value: String(i + 1),
+      label: l.name,
+      description: l.id === workspace.activeId ? "active" : undefined,
+      kind: "value" as const,
+    }));
+  },
+  run: (args, ctx) => {
+    const [head, ...rest] = args;
+
+    if (!head || head === "list" || head === "ls") {
+      printLayouts(ctx);
+      return;
+    }
+
+    if (head === "new") {
+      const name = rest.join(" ").trim() || undefined;
+      const layout = workspace.create(name);
+      ctx.print(`created workspace ${layout.name} (active)`, "output");
+      return;
+    }
+
+    if (head === "rename") {
+      const name = rest.join(" ").trim();
+      if (!name) {
+        ctx.print("usage: ws rename <name>", "error");
+        return;
+      }
+      workspace.rename(workspace.activeId, name);
+      ctx.print(`renamed workspace to ${name}`, "output");
+      return;
+    }
+
+    if (head === "rm") {
+      const token = rest[0];
+      const target = token ? resolveLayout(token) : workspace.active;
+      if (!target) {
+        ctx.print(`no such workspace: ${token}`, "error");
+        return;
+      }
+      const ok = workspace.remove(target.id);
+      ctx.print(ok ? `removed workspace ${target.name}` : "cannot remove the last workspace", ok ? "output" : "error");
+      return;
+    }
+
+    if (head === "next" || head === "prev") {
+      head === "next" ? workspace.next() : workspace.prev();
+      ctx.print(`workspace ${workspace.active.name}`, "output");
+      return;
+    }
+
+    // bare `ws <n|name>`
+    const target = resolveLayout(head);
+    if (!target) {
+      ctx.print(`no such workspace: ${head}`, "error");
+      return;
+    }
+    workspace.switch(target.id);
+    ctx.print(`workspace ${target.name}`, "output");
+  },
+  preview: (args) => {
+    const [head] = args;
+    if (!head || wsVerbs.has(head)) return null;
+    const target = resolveLayout(head);
+    if (!target) return { target: "ws", hint: `no such workspace: ${head}`, invalid: true };
+    return { target: "ws", hint: `switch → ${target.name}` };
+  },
+};
+
+/** The record-agnostic container commands: `@n`, `#id`, `ls`, `close`, `ws`. */
+export const containerCommands: Command[] = [atCommand, hashCommand, lsCommand, closeCommand, wsCommand];
 
 /** `containerCommands` plus `reset --layout` — everything a workspace needs without any data slice. */
 export const workspaceCommands: Command[] = [...containerCommands, layoutResetCommand];

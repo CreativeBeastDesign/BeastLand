@@ -10,6 +10,8 @@
     workspaces?: Workspace[];
     activeId?: string;
     onchange?: (id: string) => void;
+    /** `solid` (default): pill on a surface, accent-filled active. `ghost`: bare text, accent-coloured active — for title bars. */
+    variant?: "solid" | "ghost";
   };
 
   let {
@@ -20,10 +22,11 @@
     ],
     activeId = "one",
     onchange,
+    variant = "solid",
   }: Props = $props();
 </script>
 
-<div class="ws-switcher" role="tablist" aria-label="Workspaces">
+<div class="ws-switcher" data-variant={variant} role="tablist" aria-label="Workspaces">
   {#each workspaces as ws (ws.id)}
     <button
       class="ws-switcher__item"
@@ -81,5 +84,26 @@
     background: var(--color-accent);
     color: var(--color-on-accent);
     box-shadow: 0 0 10px var(--color-glow);
+  }
+
+  /* Ghost: no surface, no fill — the active workspace is just the accent
+     colour, so it sits in a title bar without pulling attention. */
+  .ws-switcher[data-variant="ghost"] {
+    padding: 0;
+    background: transparent;
+    gap: 0;
+  }
+
+  .ws-switcher[data-variant="ghost"] .ws-switcher__item {
+    min-width: 1.5rem;
+    padding: 0.125rem 0.375rem;
+    font-family: var(--font-mono);
+    color: var(--color-text-low);
+  }
+
+  .ws-switcher[data-variant="ghost"] .ws-switcher__item--active {
+    background: transparent;
+    color: var(--color-accent);
+    box-shadow: none;
   }
 </style>
