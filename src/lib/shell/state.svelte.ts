@@ -96,16 +96,17 @@ function createShell() {
     },
 
     /**
-     * Set the theme by id. Returns false when it isn't registered. When the
-     * theme declares a default `wallpaper` that IS registered and
-     * `keepWallpaper` wasn't requested, also switches to it.
+     * Set the theme by id. Returns false when it isn't registered. Changes
+     * the theme only; with `withWallpaper` it also switches to the theme's
+     * default `wallpaper` when that one is registered (what `applyLook` and
+     * `theme --with-wallpaper` do).
      */
-    setTheme(id: string, opts?: { keepWallpaper?: boolean }): boolean {
+    setTheme(id: string, opts?: { withWallpaper?: boolean }): boolean {
       const t = themes.get(id);
       if (!t) return false;
       theme = id;
       if (typeof document !== "undefined") applyTheme(id);
-      if (!opts?.keepWallpaper && t.wallpaper && wallpapers.get(t.wallpaper)) {
+      if (opts?.withWallpaper && t.wallpaper && wallpapers.get(t.wallpaper)) {
         wallpaper = t.wallpaper;
       }
       persist();
@@ -150,7 +151,7 @@ function createShell() {
     applyLook(id: string): boolean {
       const l = looks.get(id);
       if (!l) return false;
-      const themeOk = this.setTheme(l.theme, { keepWallpaper: true });
+      const themeOk = this.setTheme(l.theme);
       const wallpaperOk = this.setWallpaper(l.wallpaper);
       return themeOk && wallpaperOk;
     },

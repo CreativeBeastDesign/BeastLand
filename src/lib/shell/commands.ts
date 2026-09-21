@@ -137,11 +137,12 @@ export const shellCommands: Command[] = [
   {
     name: "theme",
     description: "Show or change the active theme",
-    usage: "theme [id|n|next] [--keep-wallpaper]",
+    usage: "theme [id|n|next] [--with-wallpaper/-w]",
     flags: [
       {
-        name: "keep-wallpaper",
-        description: "Don't follow the theme's default wallpaper, if it has one",
+        name: "with-wallpaper",
+        short: "w",
+        description: "Also switch to the theme's default wallpaper (`look` does this for a pair)",
       },
     ],
     complete: (args) => {
@@ -154,7 +155,7 @@ export const shellCommands: Command[] = [
     run: (args, ctx) => {
       const parsed = parseArgs(args);
       const [arg] = parsed.positional;
-      const keepWallpaper = flag(parsed, "keep-wallpaper") !== undefined;
+      const withWallpaper = flag(parsed, "with-wallpaper", "w") !== undefined;
 
       if (!arg) {
         ctx.print(`current theme: ${shell.theme}`, "output");
@@ -169,7 +170,7 @@ export const shellCommands: Command[] = [
         return;
       }
 
-      if (!shell.setTheme(byNumberOrId(themes.all, arg), { keepWallpaper })) {
+      if (!shell.setTheme(byNumberOrId(themes.all, arg), { withWallpaper })) {
         ctx.print(`unknown theme: ${arg}`, "error");
         return;
       }

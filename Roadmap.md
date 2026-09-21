@@ -368,8 +368,9 @@ Things that will hurt during extraction, in order:
   rune-backed registries (`.all`/`.get`/`.register`, mirroring `kinds`);
   the library ships five themes and zero wallpapers (the demo registers its
   own in `src/routes/+layout.svelte`). `Theme.wallpaper` names a default
-  wallpaper, resolved lazily so a dangling id is harmless;
-  `shell.setTheme(id, { keepWallpaper })` follows it. **Looks** are named
+  wallpaper, resolved lazily so a dangling id is harmless; `theme` alone
+  never touches the wallpaper (that is what `look` is for) —
+  `setTheme(id, { withWallpaper })` / `theme <id> -w` opt in. **Looks** are named
   theme+wallpaper pairs; `shell.look` is derived, nothing new persisted.
   Hydration skips registry validation on purpose (imports are hoisted, the
   app registers after the store hydrates) — `themeMeta`/`wallpaperMeta`

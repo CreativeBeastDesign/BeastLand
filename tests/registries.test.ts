@@ -1,7 +1,7 @@
 /**
  * Theme / wallpaper / look registries: register/unregister, runtime id
  * checks, `shell.look` derivation, `setTheme`'s default-wallpaper follow
- * (and `keepWallpaper`), and the hydration-order guarantee `shell` makes —
+ * (opt-in via `withWallpaper`), and the hydration-order guarantee `shell` makes —
  * a persisted id survives even when the registry that resolves it only
  * fills in *after* the store has already hydrated from storage.
  *
@@ -86,13 +86,13 @@ describe("shell.look", () => {
     try {
       // A brand-new wallpaper id can't already be the current one.
       expect(shell.look).not.toBe("registries-test:look");
-      expect(shell.setTheme("beast-dark", { keepWallpaper: true })).toBe(true);
+      expect(shell.setTheme("beast-dark")).toBe(true);
       expect(shell.setWallpaper("registries-test:look-wp")).toBe(true);
       expect(shell.look).toBe("registries-test:look");
     } finally {
       offL();
       offW();
-      shell.setTheme(prevTheme, { keepWallpaper: true });
+      shell.setTheme(prevTheme);
       shell.setWallpaper(prevWallpaper);
     }
   });
@@ -115,14 +115,14 @@ describe("shell.look", () => {
     } finally {
       offL();
       offW();
-      shell.setTheme(prevTheme, { keepWallpaper: true });
+      shell.setTheme(prevTheme);
       shell.setWallpaper(prevWallpaper);
     }
   });
 });
 
 describe("shell.setTheme", () => {
-  it("follows the theme's default wallpaper when it's registered", () => {
+  it("follows the theme's default wallpaper only with `withWallpaper`", () => {
     const prevTheme = shell.theme;
     const prevWallpaper = shell.wallpaper;
     const offW = registerWallpaper({ id: "registries-test:follow-wp", label: "Follow", src: "/follow.jpg" });
@@ -136,16 +136,18 @@ describe("shell.setTheme", () => {
     try {
       expect(shell.setTheme("registries-test:follow-theme")).toBe(true);
       expect(shell.theme).toBe("registries-test:follow-theme");
+      expect(shell.wallpaper).toBe(prevWallpaper); // theme alone never touches the wallpaper
+      expect(shell.setTheme("registries-test:follow-theme", { withWallpaper: true })).toBe(true);
       expect(shell.wallpaper).toBe("registries-test:follow-wp");
     } finally {
       offT();
       offW();
-      shell.setTheme(prevTheme, { keepWallpaper: true });
+      shell.setTheme(prevTheme);
       shell.setWallpaper(prevWallpaper);
     }
   });
 
-  it("keepWallpaper leaves the current wallpaper alone", () => {
+  it("withWallpaper is a no-op when the theme's wallpaper isn't registered", () => {
     const prevTheme = shell.theme;
     const prevWallpaper = shell.wallpaper;
     const offW = registerWallpaper({ id: "registries-test:keep-wp", label: "Keep", src: "/keep.jpg" });
@@ -158,12 +160,12 @@ describe("shell.setTheme", () => {
     });
     try {
       const before = shell.wallpaper;
-      expect(shell.setTheme("registries-test:keep-theme", { keepWallpaper: true })).toBe(true);
+      expect(shell.setTheme("registries-test:keep-theme")).toBe(true);
       expect(shell.wallpaper).toBe(before);
     } finally {
       offT();
       offW();
-      shell.setTheme(prevTheme, { keepWallpaper: true });
+      shell.setTheme(prevTheme);
       shell.setWallpaper(prevWallpaper);
     }
   });
@@ -183,7 +185,7 @@ describe("shell.setTheme", () => {
       expect(shell.wallpaper).toBe(before); // nothing to switch to — no crash, no change
     } finally {
       offT();
-      shell.setTheme(prevTheme, { keepWallpaper: true });
+      shell.setTheme(prevTheme);
     }
   });
 
@@ -219,7 +221,7 @@ describe("hydration order", () => {
       }
     } finally {
       storage.use(memoryStorage());
-      shell.setTheme(prevTheme, { keepWallpaper: true });
+      shell.setTheme(prevTheme);
       shell.setWallpaper(prevWallpaper);
     }
   });
@@ -249,7 +251,7 @@ describe("hydration order", () => {
       }
     } finally {
       storage.use(memoryStorage());
-      shell.setTheme(prevTheme, { keepWallpaper: true });
+      shell.setTheme(prevTheme);
     }
   });
 });
@@ -286,7 +288,7 @@ describe("numbered selection (`wallpaper 2`, `theme 2`, `look 2`)", () => {
       expect((await run(`look ${looks.all.length}`))[0]).toMatch(/^look set to registries-test:look/);
       expect((await run("theme 1"))[0]).toBe(`theme set to ${themes.all[0].id}`);
     } finally {
-      shell.setTheme(before.theme, { keepWallpaper: true });
+      shell.setTheme(before.theme);
       shell.setWallpaper(before.wallpaper);
       offs.forEach((off) => off());
     }

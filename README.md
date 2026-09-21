@@ -428,15 +428,17 @@ scope before the shell renders, the way `src/routes/+layout.svelte` does.
 `themeIds()`, `defaultTheme()`, `wallpaperIds()`, `defaultWallpaper()` are
 functions (Svelte forbids exporting derived state from a module).
 
-A `Theme` may name a default `wallpaper`; `shell.setTheme(id)` follows it
-unless you pass `{ keepWallpaper: true }`. A **look** is a named
-`(theme, wallpaper)` pair: `shell.look` is derived — the matching look's id
-or `null` for a custom combination — and `shell.applyLook(id)` sets both.
+`shell.setTheme(id)` changes the theme and nothing else. A `Theme` may name
+a default `wallpaper`; `shell.setTheme(id, { withWallpaper: true })` (or
+`theme <id> -w`) follows it. A **look** is a named `(theme, wallpaper)`
+pair: `shell.look` is derived — the matching look's id or `null` for a
+custom combination — and `shell.applyLook(id)` sets both; that is the
+command for "switch everything".
 Nothing new is persisted. Persisted ids are resolved lazily (the store
 hydrates before your registrations run), so an unknown id falls back to the
 default at read time rather than being dropped.
 
-Commands: `theme [id|n|next] [--keep-wallpaper]`, `wallpaper [id|n|next]`
+Commands: `theme [id|n|next] [--with-wallpaper/-w]`, `wallpaper [id|n|next]`
 (alias `wp`), `look [list|id|n]`. A number is the 1-based registration
 position the listings print (`wp 5` ≡ `wp adler`), same numbering as `ws`.
 
