@@ -12,7 +12,8 @@ import { untrack } from "svelte";
 import { shellCommands, type Command } from "./commands.js";
 
 function createRegistry() {
-  let extensions = $state<Command[][]>([]);
+  // Raw: groups are only ever reassigned, never mutated — no need to deep-proxy every Command.
+  let extensions = $state.raw<Command[][]>([]);
 
   return {
     get commands(): Command[] {

@@ -7,6 +7,7 @@
  * `complete(args)`. No DOM, no state.
  */
 
+import { indexCommands } from "./command-index.js";
 import { flagsFor, tokenize, type Command, type Suggestion } from "./protocol.js";
 
 // ---------------------------------------------------------------------------
@@ -30,7 +31,15 @@ function isWordStart(text: string, i: number): boolean {
  * consecutive/word-start matches score highest.
  */
 export function fuzzyScore(query: string, candidate: string): number | null {
-  const q = query.toLowerCase();
+  return fuzzyScoreLower(query.toLowerCase(), candidate);
+}
+
+/**
+ * Same as `fuzzyScore`, but takes an already-lowercased query. `rank` calls
+ * this directly so the same query isn't re-lowercased for every candidate in
+ * the list — a per-keystroke hot path over the whole command/suggestion set.
+ */
+function fuzzyScoreLower(q: string, candidate: string): number | null {
   const c = candidate.toLowerCase();
   if (q.length === 0) return 0;
   if (q.length > c.length) return null;
@@ -57,16 +66,19 @@ export function fuzzyScore(query: string, candidate: string): number | null {
 
 /** Rank suggestions by fuzzy score of `query` against value and label. */
 export function rank(query: string, suggestions: Suggestion[], limit = 8): Suggestion[] {
+  // Hoisted out of the loop: same for every suggestion, so lowercase/strip
+  // once per `rank` call instead of once per candidate.
+  const q = query.toLowerCase();
+  // `#rob` should find "Rob Van Der Linden": drop a leading sigil when
+  // matching against the label.
+  const labelQuery = q.replace(/^[#@]/, "");
   const scored = suggestions
     .map((s) => {
       // A match on the value is primary; a label match (e.g. a customer
       // name for `#xp`) counts, but at half weight so aliases never beat
       // the real name they alias.
-      const byValue = fuzzyScore(query, s.value);
-      // `#rob` should find "Rob Van Der Linden": drop a leading sigil when
-      // matching against the label.
-      const labelQuery = query.replace(/^[#@]/, "");
-      const byLabel = s.label ? fuzzyScore(labelQuery, s.label) : null;
+      const byValue = fuzzyScoreLower(q, s.value);
+      const byLabel = s.label ? fuzzyScoreLower(labelQuery, s.label) : null;
       let best: number | null = null;
       if (byValue !== null) best = byValue;
       if (byLabel !== null) best = Math.max(best ?? -Infinity, byLabel * 0.5 - 1);
@@ -159,9 +171,8 @@ export function candidatesFor(input: string, commands: Command[], limit = 8): Su
   }
 
   const [name, ...rest] = tokens;
-  const command =
-    commands.find((c) => c.name === name || c.aliases?.includes(name)) ??
-    commands.find((c) => c.match?.(name));
+  const { byName, matchers } = indexCommands(commands);
+  const command = byName.get(name) ?? matchers.find((c) => c.match?.(name));
   if (!command) return [];
 
   // Prefix commands get the raw first token as args[0], like `run` does.

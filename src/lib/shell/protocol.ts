@@ -7,6 +7,8 @@
  * `commands.ts`, which re-exports this module.
  */
 
+import { indexCommands } from "./command-index.js";
+
 /**
  * A styled run of text inside an output line. Commands describe intent
  * (`id`, `key`, `muted`…); the Terminal maps tones to theme tokens.
@@ -282,9 +284,10 @@ export function matchCommand(
   const trimmed = input.trim();
   if (!trimmed) return null;
   const [name, ...args] = tokenize(trimmed);
-  const byName = commands.find((c) => c.name === name || c.aliases?.includes(name));
-  if (byName) return { command: byName, args };
-  const prefixed = commands.find((c) => c.match?.(name));
+  const { byName, matchers } = indexCommands(commands);
+  const byNameHit = byName.get(name);
+  if (byNameHit) return { command: byNameHit, args };
+  const prefixed = matchers.find((c) => c.match?.(name));
   if (prefixed) return { command: prefixed, args: [name, ...args] };
   return null;
 }
