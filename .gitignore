@@ -26,3 +26,4 @@ vite.config.ts.timestamp-*
 # Local code-intelligence indexes (codegraph, serena caches)
 .codegraph/
 .serena/cache/
+.svelte-doctor/*

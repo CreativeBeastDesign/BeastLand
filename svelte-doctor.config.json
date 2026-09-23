@@ -1,0 +1,26 @@
+{
+  "lint": true,
+  "deadCode": true,
+  "cache": true,
+  "ignore": {
+    "rules": [
+      "no-inline-event-handler",
+      "no-style-tag-props",
+      "prefer-snippet-over-passed-function",
+      "component-complexity-score",
+      "no-giant-component",
+      "component-render-cost",
+      "performance-budget",
+      "no-deep-nesting",
+      "missing-error-page",
+      "missing-handle-error",
+      "unused-page-component",
+      "no-tree-shaking-incompatible-export",
+      "no-duplicate-lib-in-chunks",
+      "exports",
+      "unused-function-export",
+      "excessive-reactive-subscriptions"
+    ],
+    "files": [".svelte-kit", "tests"]
+  }
+}
