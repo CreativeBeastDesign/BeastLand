@@ -10,6 +10,7 @@ import { shell } from "$lib/shell/state.svelte";
 import { themes } from "$lib/theme/themes.svelte.js";
 import { looks } from "$lib/theme/looks.svelte.js";
 import { wallpapers } from "$lib/wallpapers.svelte.js";
+import { undoStack, type UndoEntry } from "./undo.svelte.js";
 import {
   flag,
   parseArgs,
@@ -18,9 +19,11 @@ import {
   helpRowsFor,
   printHelpRows,
   type Command,
+  type Span,
 } from "./protocol.js";
 
 export * from "./protocol.js";
+export * from "./undo.svelte.js";
 
 /**
  * `theme 2` / `wallpaper 2` / `look 2`: a number is the 1-based position in
@@ -36,6 +39,85 @@ function byNumberOrId<T extends { id: string }>(all: readonly T[], arg: string):
 function numbered(index: number, active: boolean, id: string, label: string): string {
   return `  ${active ? "*" : " "} ${String(index + 1).padStart(2)}  ${id} — ${label}`;
 }
+
+/** `12s ago` / `3m ago` / `4h ago` / `2d ago`, from a `Date.now()`-style timestamp. */
+function ageLabel(at: number): string {
+  const s = Math.floor((Date.now() - at) / 1000);
+  if (s < 1) return "just now";
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function printUndoList(ctx: import("./protocol.js").CommandContext) {
+  const entries = [...undoStack.list()].reverse(); // most recent first
+  if (entries.length === 0) {
+    ctx.print("no undo history", "output");
+    return;
+  }
+
+  const rows = entries.map((e) => [`#${e.id}`, e.label, ageLabel(e.createdAt), e.status]);
+  const widths: number[] = [];
+  for (const row of rows) {
+    row.forEach((cell, i) => {
+      widths[i] = Math.max(widths[i] ?? 0, cell.length);
+    });
+  }
+
+  entries.forEach((entry, i) => {
+    const row = rows[i];
+    const text = row.map((cell, j) => (j === row.length - 1 ? cell : cell.padEnd(widths[j] + 2))).join("");
+    const tone: Span["tone"] = entry.status === "undoable" ? undefined : "muted";
+    ctx.print([{ text, tone }], "output");
+  });
+}
+
+function describeOutcome(outcome: { ok: false; reason: string; entry?: UndoEntry; nextUndoableId?: number }): string {
+  const who = outcome.entry ? `"${outcome.entry.label}"` : "that";
+  const hint = outcome.nextUndoableId !== undefined ? ` (try \`undo ${outcome.nextUndoableId}\`)` : "";
+  return `cannot undo ${who}: ${outcome.reason}${hint}`;
+}
+
+const undoCommand: Command = {
+  name: "undo",
+  description: "Undo the most recent action, or a specific one",
+  usage: "undo [id] [-l/--list]",
+  flags: [{ name: "list", short: "l", description: "List undo history" }],
+  complete: (args) => {
+    if (args.length !== 1) return [];
+    return undoStack
+      .list()
+      .filter((e) => e.status === "undoable")
+      .map((e) => ({ value: String(e.id), label: e.label, kind: "value" as const }));
+  },
+  run: async (args, ctx) => {
+    const parsed = parseArgs(args);
+    if (flag(parsed, "list", "l") !== undefined) {
+      printUndoList(ctx);
+      return;
+    }
+
+    const [idArg] = parsed.positional;
+    let id: number | undefined;
+    if (idArg !== undefined) {
+      id = Number(idArg.replace(/^#/, ""));
+      if (!Number.isFinite(id)) {
+        ctx.print(`invalid id: ${idArg}`, "error");
+        return;
+      }
+    }
+
+    const outcome = await undoStack.undo(id);
+    if (outcome.ok) {
+      ctx.print(`undone: ${outcome.entry.label}`, "output");
+      return;
+    }
+    ctx.print(describeOutcome(outcome), "error");
+  },
+};
 
 export const shellCommands: Command[] = [
   {
@@ -257,4 +339,5 @@ export const shellCommands: Command[] = [
       ctx.print(new Date().toLocaleTimeString(), "output");
     },
   },
+  undoCommand,
 ];

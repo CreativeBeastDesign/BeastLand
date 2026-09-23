@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.5.0
+
+- Generic undo facility: `src/lib/shell/undo.svelte.ts` exports `undoStack`
+  (`push`/`irreversible`/`undo`/`list`/`clear`) and `undoSpan`. `push`
+  returns a numeric id and accepts a `guard` (re-checked right before the
+  inverse runs; a non-null return refuses with that reason) and an
+  `expiresAt`. `irreversible(label, reason)` records a non-undoable action.
+  Plain `undo()` always targets the most recent entry; if it isn't undoable
+  it explains why and names the next undoable id rather than reaching past
+  it. Entries are marked `"undone"`, not removed; capped at 50; in-memory
+  only. One undo runs at a time; a failing inverse leaves its entry
+  undoable and reports the error.
+- New built-in shell command `undo`: `undo` (latest), `undo <id>`, `undo
+  -l`/`--list` (id, label, age, status — muted for non-undoable);
+  completion offers undoable ids with their labels.
+- `undoSpan(id)` builds a `Span` using the existing `Span.command` (a
+  clickable span that runs a command line through the dispatcher exactly as
+  if typed, echoed in history) for a muted `[undo]` link.
+- `workspace.svelte.ts`'s `spawn`/`close`/`move`/`resize` push a
+  `"layout"`-grouped undo entry for every user-initiated call: `spawn` →
+  close; `close` → re-create the same kind/contentId/title/rect and, when
+  free, the same `@n` id (falling back to ordinary placement otherwise);
+  `move`/`resize` → restore the previous rect(s). Selection-only changes
+  and `prune()` push nothing; undoing never pushes a new entry of its own.
+- New exports: `undoStack`, `undoSpan`, `UndoStack`, `UndoEntry`,
+  `UndoStatus`, `UndoPushInput`, `UndoOutcome`.
+
 ## 0.4.0
 
 - `-h`/`--help` on any command at any depth (`doc -h`, `doc #id -h`,

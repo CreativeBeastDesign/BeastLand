@@ -522,6 +522,7 @@ src/lib/shell/
   keymap.ts, keys.ts   bindings as data, MODIFIER
   bridge.ts            commandBridge, runBridge (UI-kit → shell)
   toasts.svelte.ts     notify()
+  undo.svelte.ts       undoStack (push/irreversible/undo/list), undoSpan — see §10
 src/lib/tiling/
   types.ts             Container, GRID_COLUMNS, DEFAULT_SIZE, WorkspaceStore contract
   workspace.svelte.ts  the grid: spawn/open/move/resize/close/prune, peek* for previews
@@ -544,3 +545,65 @@ multi-line input or history persistence in the terminal; completion for
 `#id <verb> <arg>` only covers the first argument of prefix commands; per-
 component prop docs are the components' own `Props` types; per-request
 server state (section 7). None of them block bringing a new kind.
+
+---
+
+## 10. Undo
+
+`src/lib/shell/undo.svelte.ts` is a generic, in-memory undo stack the shell
+owns; BeastLand's own layout operations feed it (below), and your slices can
+feed it the same way for their own mutations (a `document set`, a `delete`,
+anything with a clean inverse).
+
+```ts
+undoStack.push({
+  label: "set city on #xp",           // shown in `undo -l` and in messages
+  undo: () => data.updateCustomer(id, { city: previous }),
+  guard: () => data.getCustomer(id)?.updatedBy !== me ? "changed since by Anna" : null,
+  expiresAt: Date.now() + 5 * 60_000, // optional hard cutoff
+  group: "customer",                  // optional, your own grouping only
+}); // → number id
+
+undoStack.irreversible("sent invoice #4c by email", "emails can't be unsent");
+```
+
+- `push` returns a numeric id. `guard` (sync or async) is re-checked right
+  before `undo` runs; a non-null return refuses with that string as the
+  reason and leaves the entry undoable. `expiresAt` makes the entry report
+  `"expired"` and refuse on its own once passed.
+- `irreversible(label, reason)` records a non-undoable action so `undo -l`
+  shows it (greyed) and a plain `undo` explains why it won't touch it,
+  instead of reaching past it to something older.
+- Plain `undo()` (typed as `undo`, or `undoStack.undo()`) always targets the
+  single most recent entry. If that entry isn't undoable — irreversible,
+  expired, or already undone — it reports why and names the next undoable
+  entry's id (`undo <id>`) rather than undoing something else implicitly.
+  Only an explicit `undo <id>` ever reaches past the most recent entry.
+- Entries are marked `"undone"` after a successful undo, not removed —
+  `undoStack.list()` still shows them. The stack caps at 50 entries (oldest
+  dropped first) and is **in-memory only**: a reload clears it, same as
+  anything you haven't persisted yourself.
+- Concurrency: one `undo` runs at a time; a second call while one is in
+  flight is refused. A failing inverse leaves its entry undoable and reports
+  the thrown error — nothing is lost.
+- `undoSpan(id)` builds a `Span` (`{ text: "undo", tone: "muted", command:
+  "undo <id>" }`) — append it to a printed line (`ctx.print(["…", " ",
+  undoSpan(id)], "output")`) so the line carries a clickable `[undo]` that
+  runs `undo <id>` through the dispatcher, echoed in history, exactly like
+  typing it.
+- The `undo` shell command (built into `shellCommands`) is `undo` (latest),
+  `undo <id>` (or `undo #<id>`), and `undo -l`/`--list` (id, label, age,
+  status — muted for anything that isn't `"undoable"`). Its completion
+  offers only undoable ids, with their labels.
+
+**Layout undo, built in.** `workspace.svelte.ts`'s own `spawn`/`close`/
+`move`/`resize` push a `"layout"`-grouped entry for every user-initiated
+call (not for `select*`/`prune()`, which are selection-only or internal):
+`spawn` → inverse closes it; `close` → inverse re-creates the same
+kind/contentId/title/rect and, if nothing has taken it since, the same `@n`
+id (ids are lowest-free, so this is often automatic) — falling back to
+ordinary placement otherwise; `move`/`resize` → inverse restores the
+previous rect(s) (both sides of a swap). Undoing never pushes a new entry
+of its own (there's no redo). If you spawn/close/move/resize containers
+directly against `workspace` (not through a command), you get this for
+free — there's nothing extra to wire up.

@@ -198,6 +198,8 @@ exports[`public API surface > matches the known set of exported names and their 
   "toAsync: function",
   "toasts: object",
   "tokenize: function",
+  "undoSpan: function",
+  "undoStack: object",
   "uniquePrefixLength: function",
   "viewFrom: function",
   "wallpaperIds: function",

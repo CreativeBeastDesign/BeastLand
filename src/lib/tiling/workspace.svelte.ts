@@ -16,6 +16,7 @@
 
 import { kinds } from "./kinds.svelte.js";
 import { storage } from "$lib/shell/storage.js";
+import { undoStack } from "$lib/shell/undo.svelte.js";
 import {
   DEFAULT_SIZE,
   GRID_COLUMNS,
@@ -108,6 +109,11 @@ function initialState(): { layouts: WorkspaceLayout[]; activeId: string; migrate
 function createWorkspace() {
   let layouts = $state<WorkspaceLayout[]>([]);
   let activeId = $state<string>("");
+  // Set for the duration of an undo inverse (or a fallback `spawn` it makes):
+  // suppresses the very push*() calls below, so undoing never grows the
+  // stack, and a redo-less inverse can call `spawn`/`close`/`setRect`
+  // without it being mistaken for a fresh, user-initiated layout change.
+  let applyingUndo = false;
 
   function activeLayout(): WorkspaceLayout {
     return layouts.find((l) => l.id === activeId) ?? layouts[0];
@@ -216,7 +222,61 @@ function createWorkspace() {
     };
     updateActive({ containers: [...layout.containers, container], selectedId: container.id, nextId: Math.max(layout.nextId, id + 1) });
     persist();
+    pushSpawnUndo(container);
     return container;
+  }
+
+  /** Undo entry for a user-initiated `spawn`: its inverse is closing it again. */
+  function pushSpawnUndo(container: Container): void {
+    if (applyingUndo) return;
+    const id = container.id;
+    undoStack.push({
+      label: `open @${id} (${kinds.labelOf(container.kind, container.contentId)})`,
+      group: "layout",
+      undo: () => {
+        applyingUndo = true;
+        try {
+          close(id);
+        } finally {
+          applyingUndo = false;
+        }
+      },
+    });
+  }
+
+  /**
+   * Re-create a closed container: same kind/contentId/title/rect and, if
+   * nothing has taken it since, the same `@n` id (ids are lowest-free, so
+   * this is often automatic). Falls back to ordinary `spawn` placement
+   * (still lowest-free id) when the id or the rect is no longer free.
+   */
+  function restoreContainer(snapshot: Container): void {
+    applyingUndo = true;
+    try {
+      const layout = activeLayout();
+      const idFree = !layout.containers.some((c) => c.id === snapshot.id);
+      const rectFree = !layout.containers.some((c) => overlaps(snapshot, c));
+      if (idFree && rectFree) {
+        const container: Container = { ...snapshot };
+        updateActive({
+          containers: [...layout.containers, container],
+          selectedId: container.id,
+          nextId: Math.max(layout.nextId, container.id + 1),
+        });
+        persist();
+      } else {
+        spawn(snapshot.kind, snapshot.contentId, { title: snapshot.title, w: snapshot.w, h: snapshot.h });
+      }
+    } finally {
+      applyingUndo = false;
+    }
+  }
+
+  /** Directly overwrite a container's rectangle (no overlap check) — used to restore a previous move/resize. */
+  function setRect(id: ContainerId, rect: Rect): void {
+    const containers = activeLayout().containers.map((c) => (c.id === id ? { ...c, ...rect } : c));
+    updateActive({ containers });
+    persist();
   }
 
   function open(kind: ContentKind, contentId: string): Container {
@@ -231,6 +291,7 @@ function createWorkspace() {
 
   function close(id: ContainerId): boolean {
     const layout = activeLayout();
+    const closed = layout.containers.find((c) => c.id === id);
     const before = layout.containers.length;
     const containers = layout.containers.filter((c) => c.id !== id);
     if (containers.length === before) return false;
@@ -246,6 +307,15 @@ function createWorkspace() {
     }
     updateActive({ containers, selectedId });
     persist();
+
+    if (closed && !applyingUndo) {
+      const snapshot: Container = { ...closed };
+      undoStack.push({
+        label: `close @${id} (${kinds.labelOf(closed.kind, closed.contentId)})`,
+        group: "layout",
+        undo: () => restoreContainer(snapshot),
+      });
+    }
     return true;
   }
 
@@ -379,13 +449,38 @@ function createWorkspace() {
     return { rect: target, ok: false, reason: `would overlap @${occupants[0].id}` };
   }
 
+  /** Undo entry for a move/resize: its inverse restores the previous rect(s). */
+  function pushRectUndo(label: string, restores: { id: ContainerId; rect: Rect }[]): void {
+    if (applyingUndo) return;
+    undoStack.push({
+      label,
+      group: "layout",
+      guard: () => {
+        for (const r of restores) {
+          if (!get(r.id)) return `@${r.id} was closed`;
+        }
+        return null;
+      },
+      undo: () => {
+        applyingUndo = true;
+        try {
+          for (const r of restores) setRect(r.id, r.rect);
+        } finally {
+          applyingUndo = false;
+        }
+      },
+    });
+  }
+
   function move(id: ContainerId, dir: Direction): MoveResult {
     const peek = peekMove(id, dir);
     if (!peek.ok) return { ok: false, reason: peek.reason ?? "cannot move" };
 
     const layout = activeLayout();
+    const container = get(id)!;
+    const label = `move @${id} (${kinds.labelOf(container.kind, container.contentId)})`;
+
     if (peek.swapWith !== undefined) {
-      const container = get(id)!;
       const other = get(peek.swapWith)!;
       const containers = layout.containers.map((c) => {
         if (c.id === id) return { ...c, x: other.x, y: other.y };
@@ -394,12 +489,17 @@ function createWorkspace() {
       });
       updateActive({ containers });
       persist();
+      pushRectUndo(label, [
+        { id, rect: { x: container.x, y: container.y, w: container.w, h: container.h } },
+        { id: other.id, rect: { x: other.x, y: other.y, w: other.w, h: other.h } },
+      ]);
       return { ok: true };
     }
 
     const containers = layout.containers.map((c) => (c.id === id ? { ...c, x: peek.rect.x, y: peek.rect.y } : c));
     updateActive({ containers });
     persist();
+    pushRectUndo(label, [{ id, rect: { x: container.x, y: container.y, w: container.w, h: container.h } }]);
     return { ok: true };
   }
 
@@ -427,9 +527,13 @@ function createWorkspace() {
     const peek = peekResize(id, size);
     if (!peek.ok) return { ok: false, reason: peek.reason ?? "cannot resize" };
 
+    const container = get(id)!;
     const containers = activeLayout().containers.map((c) => (c.id === id ? { ...c, w: peek.rect.w, h: peek.rect.h } : c));
     updateActive({ containers });
     persist();
+    pushRectUndo(`resize @${id} (${kinds.labelOf(container.kind, container.contentId)})`, [
+      { id, rect: { x: container.x, y: container.y, w: container.w, h: container.h } },
+    ]);
     return { ok: true };
   }
 
