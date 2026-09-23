@@ -103,6 +103,35 @@ describe("fuzzy completion", () => {
     expect(splitInput('a "b c" d')).toEqual({ tokens: ["a", "b c"], partial: "d" });
   });
 
+  it("emits one suggestion per flag, bundled `-a, --all`, inserting the form typed", () => {
+    const withFlags: Command[] = [
+      {
+        name: "@<n>",
+        description: "c",
+        match: (t) => /^@\d*$/.test(t),
+        flags: [
+          { name: "width", short: "w", description: "Column width", takesValue: true },
+          { name: "down", short: "d", description: "Move down" },
+          { name: "status", description: "s", takesValue: true, values: ["draft", "sent"] },
+        ],
+        run: () => {},
+      },
+    ];
+    // Exactly one row per flag — not one for "--width" and a second for "-w".
+    const short = candidatesFor("@5 -", withFlags);
+    expect(short.map((s) => s.value).sort()).toEqual(["--status", "-d", "-w"]);
+    expect(short.find((s) => s.value === "-w")?.label).toBe("-w, --width");
+    // No short form declared: label has no comma.
+    expect(short.find((s) => s.value === "--status")?.label).toBe("--status");
+
+    // Typing `--` inserts the long form of the same flags.
+    const long = candidatesFor("@5 --", withFlags);
+    expect(long.map((s) => s.value).sort()).toEqual(["--down", "--status", "--width"]);
+
+    // Still findable by the long name even while typing the short prefix scope.
+    expect(candidatesFor("@5 --wi", withFlags).map((s) => s.value)).toEqual(["--width"]);
+  });
+
   it("offers nothing while the caret is inside an unterminated quote, even across a space", () => {
     const withFlags: Command[] = [
       { name: "ask", description: "a", flags: [{ name: "width", short: "w", description: "w", takesValue: true }], run: () => {} },

@@ -69,6 +69,7 @@ export { defaultKeymap, describeKeymap, resolveKey, type KeyBinding, type Action
 export { commandBridge, runBridge } from "$lib/shell/bridge.js";
 export { clearHistory, loadHistory, persistHistory, historyStorageKey, HISTORY_CAP } from "$lib/shell/history.js";
 export { proseSpans, commandLineSpans, isRunnableFenceInfo, type LineVerdict, type ProseOptions } from "$lib/shell/prose.js";
+export { linkify, isAllowedLinkHref, type LinkifyPart } from "$lib/shell/linkify.js";
 export { portal } from "$lib/actions/portal.js";
 export { overflowFade } from "$lib/actions/overflowFade.js";
 

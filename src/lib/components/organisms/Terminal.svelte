@@ -18,6 +18,7 @@
     runCommand,
   } from "$lib/shell/commands.js";
   import { candidatesFor, applySuggestion, splitInput } from "$lib/shell/completion.js";
+  import { linkify, isAllowedLinkHref } from "$lib/shell/linkify.js";
   import { applyAutoPair, applyAutoPairBackspace } from "$lib/shell/autopair.js";
   import { registry } from "$lib/shell/registry.svelte.js";
   import { shell } from "$lib/shell/state.svelte.js";
@@ -885,6 +886,28 @@
 </div>
 </section>
 
+{#snippet linkOrText(text: string)}
+  <!-- Auto-linkify: bare http(s) URLs in plain text become real links. Not
+       applied to `code`-toned spans (a literal URL in `code` is data to be
+       read/copied verbatim, not clicked) or spans that already carry
+       `command`/`href` (handled by the caller, one branch up). -->
+  {#each linkify(text) as part, i (i)}
+    {#if part.href}
+      <a
+        class="terminal__span terminal__span--link"
+        data-tone="accent"
+        href={part.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        onclick={(event) => event.stopPropagation()}
+      >{part.text}</a
+      >
+    {:else}
+      {part.text}
+    {/if}
+  {/each}
+{/snippet}
+
 {#snippet lineContent(line: OutputLine)}
   {#if line.spans}
     {#each line.spans as span, i (i)}
@@ -897,12 +920,27 @@
           onclick={(event) => handleSpanClick(event, span)}
         >{span.text}</button
         >
-      {:else}
+      {:else if span.href && isAllowedLinkHref(span.href)}
+        <a
+          class="terminal__span terminal__span--link"
+          class:terminal__span--strike={span.strike}
+          data-tone={span.tone}
+          href={span.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onclick={(event) => event.stopPropagation()}
+        >{span.text}</a
+        >
+      {:else if span.tone === "code"}
         <span class="terminal__span" class:terminal__span--strike={span.strike} data-tone={span.tone}>{span.text}</span>
+      {:else}
+        <span class="terminal__span" class:terminal__span--strike={span.strike} data-tone={span.tone}
+          >{@render linkOrText(span.text)}</span
+        >
       {/if}
     {/each}
   {:else}
-    {line.text}
+    {@render linkOrText(line.text)}
   {/if}
 {/snippet}
 

@@ -227,6 +227,50 @@ Keys: `Tab` accepts (or the first candidate when the popup is closed),
 dismisses. The popup stays closed when the token already exactly matches a
 candidate or a free-form flag value is required.
 
+A flag with both a long and short name is a single suggestion, labelled
+`-a, --all` — never two rows. Typing a lone `-` inserts the short form (when
+one exists), `--` inserts the long form; either still fuzzy-matches the
+other (`--li` still finds `--limit`).
+
+## Help (`-h`/`--help`)
+
+Every command gets `-h`/`--help` for free, at any depth, without declaring
+anything: the shell intercepts it centrally, before `run`, the same way for
+every command.
+
+```
+doc -h              # top-level: description, usage, subcommands/verbs, flags
+doc #41e3 -h        # context-specific: verbs and flags valid for `#41e3`
+doc #41e3 send -h   # deeper still — same mechanism, one level further in
+```
+
+The verbs/flags shown are computed exactly like the completion popup would
+at that point (`complete`/`completeFlags`), so help can never drift from
+what typing offers. Flags print bundled, short-first, one per line:
+
+```
+flags:
+  -a, --all            Show every item (no limit)
+  -l, --limit <value>  Max rows
+```
+
+`help <command> [args…]` prints the identical thing — `help doc #41e3` is
+`doc #41e3 -h` by another name — except `help <command>` with **no** extra
+args keeps the fuller static manual (`command.subcommands`/`flags` as
+declared, aliases combined, each subcommand's own flags nested underneath),
+matching what it has always shown.
+
+Two guards keep this from surprising anyone: a command that already declares
+its own `h` short flag or `help` long flag is never hijacked (its `-h`/
+`--help` reaches `run` like any other flag), and a quoted `"-h"` is treated
+as a literal argument, not the help flag.
+
+Reach for `helpRowsFor(command, args, commands)` / `helpRows(command)`
+directly (they return the same `HelpRow[]` the terminal prints, via
+`printHelpRows`) to embed a command's grammar elsewhere — an LLM system
+prompt, say — the way `helpText`/`helpIndex` already let you do for the
+static manual.
+
 ## Prefix commands (`@2`, `#xp`)
 
 Some commands are *shaped* rather than named — a container reference, a
@@ -290,6 +334,28 @@ ctx.print([
 Tones: `id`, `id-rest`, `key`, `muted`, `accent`, `bold`, `code`. A span with
 `command` becomes a button; attach only navigational commands to clicks,
 never destructive ones.
+
+### Links
+
+A bare `http://`/`https://` URL in plain output text or a span's `text` is
+auto-linkified — detected, trimmed of trailing sentence punctuation
+(`.`, `,`, a closing `)` that isn't balanced by one inside the URL…), and
+rendered as a real link that opens in a new tab (`target="_blank" rel="noopener
+noreferrer"`). This does not apply inside `tone: "code"` spans (a URL there
+is data to read or copy, not click) or the prompt input.
+
+To link an explicit label to a URL — rather than printing the URL itself —
+set `href` on a span:
+
+```ts
+ctx.print([{ text: "Open the PDF", tone: "accent", href: `${baseUrl}/documents/${key}/pdf` }]);
+```
+
+Only `http:`/`https:` are ever honoured, for `href` exactly as for
+auto-linkified text — `isAllowedLinkHref` (`beastland`) is the allowlist
+check the Terminal applies at render time; a disallowed scheme (`javascript:`,
+`data:`…) falls back to plain, inert text instead of being rendered as a
+link. `href` and `command` are mutually exclusive — set one or the other.
 
 For two-column output in a narrow panel use a hanging indent so wrapped text
 stays in its column:

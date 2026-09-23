@@ -113,13 +113,24 @@ export function splitInput(input: string): { tokens: string[]; partial: string }
   return { tokens: tokens.slice(0, -1), partial: tokens[tokens.length - 1] ?? "" };
 }
 
-function flagSuggestions(command: Command, args: string[]): Suggestion[] {
-  return flagsFor(command, args).flatMap((f) => {
-    const out: Suggestion[] = [
-      { value: `--${f.name}`, description: f.description, kind: "flag", boost: 1 },
-    ];
-    if (f.short) out.push({ value: `-${f.short}`, label: `--${f.name}`, description: f.description, kind: "flag" });
-    return out;
+/**
+ * One suggestion per flag, labelled `-a, --all` (or just `--all` when there
+ * is no short form) — never a separate row per alias. `partial` decides
+ * which spelling gets inserted: a single leading `-` inserts the short form
+ * when one exists, `--` (or no dash yet) inserts the long form.
+ */
+function flagSuggestions(command: Command, args: string[], partial: string): Suggestion[] {
+  const wantsShort = partial.startsWith("-") && !partial.startsWith("--");
+  return flagsFor(command, args).map((f) => {
+    const long = `--${f.name}`;
+    const short = f.short ? `-${f.short}` : undefined;
+    return {
+      value: wantsShort && short ? short : long,
+      label: short ? `${short}, ${long}` : long,
+      description: f.description,
+      kind: "flag",
+      boost: 1,
+    };
   });
 }
 
@@ -207,7 +218,7 @@ export function candidatesFor(input: string, commands: Command[], limit = 8): Su
 
   // Flags: always available, but when the partial does not start with `-`
   // they only appear if nothing else matches (keeps value lists clean).
-  const flags = flagSuggestions(command, args);
+  const flags = flagSuggestions(command, args, partial);
   if (partial.startsWith("-")) out.unshift(...flags);
   const ranked = rank(partial, out, limit);
   const result = ranked.length > 0 || partial.startsWith("-") ? ranked : rank(partial, flags, limit);

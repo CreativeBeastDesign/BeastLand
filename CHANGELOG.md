@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0
+
+- `-h`/`--help` on any command at any depth (`doc -h`, `doc #id -h`,
+  `doc #id item -h`), handled centrally; `help <cmd> [args…]` renders the
+  same context-specific help. Flags print bundled (`-l, --limit <value>`)
+  with full descriptions. Commands that define their own `-h`/`--help`
+  keep it.
+- Completion shows one entry per flag (`-a, --all`), inserting the
+  spelling that matches what was typed.
+- Clickable links: bare http(s) URLs in output are linkified, and `Span`
+  takes an optional `href`; both open in a new tab (http/https only).
+- New exports: `helpRowsFor`, `printHelpRows`, `linkify`, `isAllowedLinkHref`.
+
 ## 0.3.0
 
 - Terminal: no completions while the caret is inside an unterminated quote;

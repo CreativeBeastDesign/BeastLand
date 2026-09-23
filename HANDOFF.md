@@ -399,6 +399,17 @@ grammar in a system prompt. `proseSpans(text, { validate })` and
 your check (tone `error`, reason appended) instead of making them
 clickable; `commandLineSpans` is the shared per-line rule.
 
+`-h`/`--help` on any command your slice registers, at any depth, works
+without you writing anything — `runCommand` intercepts it centrally using
+your `complete`/`completeFlags` (README → Help). Only declare your own `h`
+short flag or `help` long flag if you deliberately want to opt out of that
+interception for a specific command.
+
+A plain `https://…` URL your slice `ctx.print`s (a generated PDF link, a
+webhook URL) is auto-linkified for free — no `Span` needed. Want a label
+instead of the raw URL? Set `href` on a `Span` (README → Output → Links);
+the same `http:`/`https:` allowlist (`isAllowedLinkHref`) applies either way.
+
 ### 4.8 `index.ts`
 Re-export the public surface, plus any cross-slice extras (below).
 
@@ -497,9 +508,14 @@ In the browser (fresh tab, console open, zero errors is the bar):
 
 ```
 src/lib/shell/
-  protocol.ts          Command/FlagSpec/Suggestion/Intent/Span, parseArgs, flag, runCommand
+  protocol.ts          Command/FlagSpec/Suggestion/Intent/Span (incl. `Span.href`), parseArgs,
+                       flag, runCommand (also intercepts -h/--help centrally), helpRows/helpRowsFor/
+                       helpText/helpIndex/printHelpRows
   commands.ts          re-exports protocol + shellCommands (help/clear/theme/wallpaper/echo/about/time)
-  completion.ts        fuzzyScore, rank, candidatesFor, applySuggestion
+  completion.ts        fuzzyScore, rank, candidatesFor, applySuggestion (bundles a flag's short+long
+                       into one suggestion, e.g. `-a, --all`)
+  linkify.ts           linkify, isAllowedLinkHref — auto-linkify plain http(s) URLs in output text;
+                       the allowlist `Span.href` is checked against too
   registry.svelte.ts   registry.register(commands) → unregister
   state.svelte.ts      shell: theme, wallpaper, preview, run/insert/focusTerminal
   storage.ts           StorageAdapter, AsyncStorageAdapter, storage.use/load/register
