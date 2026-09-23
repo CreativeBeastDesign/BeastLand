@@ -20,21 +20,15 @@ function padName(command: Command): string {
 }
 
 /**
- * Two-column line: `name` in the key tone padded to `width`, then `text`.
- * The hanging indent makes wrapped descriptions continue under themselves.
+ * One line of help output: either a plain `text` line or a two-column row
+ * (`name` padded to `width`, then `text`, with a hanging indent). `help`
+ * prints these styled; `helpText()` renders the same rows as plain text, so
+ * whatever embeds the grammar elsewhere (an LLM system prompt) can't drift
+ * from what the user sees.
  */
-function printColumns(ctx: CommandContext, name: string, text: string, width: number, indent = 2) {
-  const gap = 2;
-  ctx.print(
-    [
-      { text: " ".repeat(indent) },
-      { text: name.padEnd(width), tone: "key" },
-      { text: " ".repeat(gap) + text },
-    ],
-    "output",
-    { hang: indent + width + gap },
-  );
-}
+export type HelpRow = { text: string; kind?: "output" | "system" } | { indent: number; name: string; width: number; text: string };
+
+const HELP_GAP = 2;
 
 /** `--width, -w <value>` — the left column of a flag help line. */
 function flagLabel(f: FlagSpec): string {
@@ -42,34 +36,75 @@ function flagLabel(f: FlagSpec): string {
   return f.takesValue ? `${names} <value>` : names;
 }
 
-/** Print one `flags:` block, indented, columns aligned. */
-function printFlags(ctx: CommandContext, flags: FlagSpec[], indent: number) {
-  if (flags.length === 0) return;
+function flagRows(flags: FlagSpec[], indent: number): HelpRow[] {
+  if (flags.length === 0) return [];
   const labels = flags.map(flagLabel);
   const width = Math.max(...labels.map((l) => l.length));
-  flags.forEach((f, i) => printColumns(ctx, labels[i], f.description, width, indent));
+  return flags.map((f, i) => ({ indent, name: labels[i], width, text: f.description }));
 }
 
-/** `help <command>`: usage, description, subcommands (with their own flags), then flags. */
-function printCommandHelp(command: Command, ctx: CommandContext) {
-  ctx.print(`usage: ${command.usage ?? command.name}`, "output");
-  ctx.print(command.description, "output");
+/** `help <command>` as rows: usage, description, subcommands (with their own flags), then flags. */
+export function helpRows(command: Command): HelpRow[] {
+  const rows: HelpRow[] = [{ text: `usage: ${command.usage ?? command.name}` }, { text: command.description }];
 
   if (command.subcommands && command.subcommands.length > 0) {
-    ctx.print("", "output");
-    ctx.print("subcommands:", "output");
+    rows.push({ text: "" }, { text: "subcommands:" });
     const labels = command.subcommands.map((s) => [s.name, ...(s.aliases ?? [])].join(", "));
     const width = Math.max(...labels.map((l) => l.length));
     command.subcommands.forEach((s, i) => {
-      printColumns(ctx, labels[i], s.description, width);
-      if (s.flags && s.flags.length > 0) printFlags(ctx, s.flags, 6);
+      rows.push({ indent: 2, name: labels[i], width, text: s.description });
+      if (s.flags && s.flags.length > 0) rows.push(...flagRows(s.flags, 6));
     });
   }
 
   if (command.flags && command.flags.length > 0) {
-    ctx.print("", "output");
-    ctx.print("flags:", "output");
-    printFlags(ctx, command.flags, 2);
+    rows.push({ text: "" }, { text: "flags:" }, ...flagRows(command.flags, 2));
+  }
+  return rows;
+}
+
+/** Bare `help` as rows: every command with its aliases and description. */
+export function helpIndexRows(commands: Command[]): HelpRow[] {
+  const width = Math.max(0, ...commands.map((c) => padName(c).length));
+  return [
+    { text: "commands:" },
+    ...commands.map((c): HelpRow => ({ indent: 2, name: padName(c), width, text: c.description })),
+    { text: "" },
+    { text: "help <command> shows its subcommands and flags", kind: "system" },
+  ];
+}
+
+function rowText(row: HelpRow): string {
+  if ("name" in row) return `${" ".repeat(row.indent)}${row.name.padEnd(row.width)}${" ".repeat(HELP_GAP)}${row.text}`;
+  return row.text;
+}
+
+/** Plain-text `help <command>` — exactly the lines the terminal prints, unstyled. */
+export function helpText(command: Command): string {
+  return helpRows(command).map(rowText).join("\n");
+}
+
+/** Plain-text `help` index over `commands` (prefix commands included, as `help` lists them). */
+export function helpIndex(commands: Command[]): string {
+  return helpIndexRows(commands).map(rowText).join("\n");
+}
+
+/** Print help rows styled: names in the key tone, hanging indent on wrapped descriptions. */
+function printRows(rows: HelpRow[], ctx: CommandContext) {
+  for (const row of rows) {
+    if ("name" in row) {
+      ctx.print(
+        [
+          { text: " ".repeat(row.indent) },
+          { text: row.name.padEnd(row.width), tone: "key" },
+          { text: " ".repeat(HELP_GAP) + row.text },
+        ],
+        "output",
+        { hang: row.indent + row.width + HELP_GAP },
+      );
+    } else {
+      ctx.print(row.text, row.kind ?? "output");
+    }
   }
 }
 
@@ -110,11 +145,7 @@ export const shellCommands: Command[] = [
     run: (args, ctx) => {
       const [name] = args;
       if (!name) {
-        const width = Math.max(...ctx.commands.map((c) => padName(c).length));
-        ctx.print("commands:", "output");
-        for (const command of ctx.commands) printColumns(ctx, padName(command), command.description, width);
-        ctx.print("", "output");
-        ctx.print("help <command> shows its subcommands and flags", "system");
+        printRows(helpIndexRows(ctx.commands), ctx);
         return;
       }
 
@@ -123,7 +154,7 @@ export const shellCommands: Command[] = [
         ctx.print(`no such command: ${name}`, "error");
         return;
       }
-      printCommandHelp(command, ctx);
+      printRows(helpRows(command), ctx);
     },
   },
   {

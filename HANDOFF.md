@@ -76,12 +76,18 @@ the route component, inside a `<svelte:boundary>` with a `pending` snippet —
 still unknown, and let `workspace.prune()` run after your load resolves.
 
 Id format: full ids are strings; `bareId()` strips everything up to the first
-`:` (and a leading `doc_`) before computing short ids, so use
-`"<kind>:<opaque>"` — `invoice:01J9…`. Short ids are the shortest unique
-prefix of the bare part across **all** registered kinds, minimum 2 chars. If
-two ids share a long prefix (the demo's `project:pr7…`/`project:pr4…`) the
-short id just grows. Ids must be unique across kinds (they are, if the bare
-part is a real id).
+`:` and then a short type tag (2–5 lowercase letters + `_`: `doc_`, `inv_`,
+`prj_`, `conv_`) before computing short ids, so `invoice:inv_4c1d…` reads
+`#4c`, not `#inv_4`. Use `"<table>:<key>"`. Short ids are the shortest
+unique prefix of the bare part across **all** registered kinds, minimum 2
+chars; if two ids share a long prefix the short id just grows. Ids must be
+unique across kinds (they are, if the key is a real id).
+
+SurrealDB note: `String(RecordId)` yields `table:⟨key⟩` when the key
+contains `-` or other non-identifier characters, and the `⟨` would leak
+into short ids. The contract is the **unescaped** `table:key` form — build
+it yourself from `id.table`/`id.id` (an `idString`/`toRecordId` pair on the
+server boundary) rather than stringifying the RecordId.
 
 ---
 
@@ -91,6 +97,29 @@ Install the package or vendor `src/lib`. Svelte 5 (runes) is required;
 SvelteKit is what the demo uses but nothing in `src/lib` imports `$app/*`.
 Set `compilerOptions.experimental.async = true` only if you use `await` in
 components (the storage load pattern does).
+
+The package is not published: consume it as a path dependency
+(`"beastland": "../BeastLand"`, symlinked) and rebuild `dist/` with
+`npm run prepack` in this repo after every library change. Symlinked
+consumers need two Vite settings, or Svelte gets bundled twice and the
+fonts 403:
+
+```ts
+// vite.config.ts of the app
+resolve: { dedupe: ["svelte"] },
+server: { fs: { allow: ["../BeastLand"] } },
+```
+
+Assets: the library ships fonts (`beastland/assets/*`) and theme CSS, but
+**no wallpapers**. The demo's five live in this repo's `static/wallpapers`
+with absolute `/wallpapers/*.jpg` URLs — copy them (or serve your own) and
+register them with `registerWallpaper` at module scope in your root layout,
+as `src/routes/+layout.svelte` does.
+
+Settings: `settingsKind` + `settingsCommands` (the `settings`/`prefs` tile)
+ship in the library but are registered by the app like any slice — add
+them next to your kinds in the route (section 3's `Workspace.svelte`
+sketch). The Appearance section registers itself on import.
 
 Layout (copy of `src/routes/+layout.svelte`, reduced):
 
@@ -240,7 +269,8 @@ What each hook buys you, without writing a command:
 | `size`, `component` | `#id` spawns a tile of that size rendering your component |
 | `view` | `#id -d`, `#id -f` print the record; without it only the label prints |
 | `setFlags` + `set` | `@n set --…`, `#id set --…`, narrowed completion and unknown-flag warnings; the generic `runSet` prints `updated #id: k=v` |
-| `actions` | `@n <verb> …` / `#id <verb> …` with their own flags; joins `move/close/title/set` in completion and `help`. Names must not collide with those four |
+| `actions` | `@n <verb> …` / `#id <verb> …` with their own flags; completion after `@n `/`#id ` offers the *target kind's* verbs next to `move/close/title/set`. `run` may be async — the dispatcher awaits it, so `ctx.signal`/`cancelled` apply. Names must not collide with those four |
+| `context` | what an LLM sees for the record (`ask`): redact or enrich; apps fall back to `view(id, "full")` as text without it |
 
 Singleton tiles (a dashboard, a timeline) use a virtual content id and omit
 `ids` — `src/lib/worklog/kind.ts` (`worklog:timeline`).
@@ -278,13 +308,33 @@ invoice <#id> <verb> …         record-specific verbs
 Reuse from `$lib/tiling/workspace-commands.ts` instead of re-implementing:
 `sid`, `idSpans`, `say`, `printAmbiguous`, `levelFromArgs`, `printList`,
 `printRecord`, `printRows`, `printTable`, `detailFlags`, `runSet`,
-`recordSuggestions("invoice")`, `containerSuggestions`. `runSet` is how
-`invoice set` and `@n set` stay identical.
+`recordSuggestions("invoice")`, `containerSuggestions`,
+`actionSuggestions(kind)`. `runSet` is how `invoice set` and `@n set` stay
+identical. For the `invoice <#id> <verb> …` line, two helpers so every
+slice stops re-implementing the same dispatch:
+
+```ts
+completeFlags: (args) => actionFlagsFor(invoiceKind, args),   // `#id <verb> --…` completes, no unknown-flag warning
+// in run(), after resolving `#id`:
+if (verb && !(await runKindAction(invoiceKind, id, verb, rest, ctx))) ctx.print(`usage: …`, "error");
+```
 
 Declare `flags`, `subcommands` (with their flags) and `complete(args)` — the
 popup, `help invoice` and unknown-flag warnings are generated from them.
 `preview(args)` is optional; return `{ target: sid(id), hint }` for anything
 that targets a record so the tile glows while the line is typed.
+
+### 4.7b The transcript and help text (LLM slices)
+
+`ctx.blocks` (and `shell.blocks` outside a command) is a read-only snapshot
+of the terminal's blocks — `{ id, input, kind, running, lines, startedAt,
+finishedAt }[]`, oldest first — for a rolling context window or "promote
+the last `ask` answer to a record". `helpText(command)` / `helpIndex(commands)`
+return exactly the plain text `help` prints (same rows), for embedding the
+grammar in a system prompt. `proseSpans(text, { validate })` and
+`<Markdown validateLine>` strike through proposed command lines that fail
+your check (tone `error`, reason appended) instead of making them
+clickable; `commandLineSpans` is the shared per-line rule.
 
 ### 4.8 `index.ts`
 Re-export the public surface, plus any cross-slice extras (below).

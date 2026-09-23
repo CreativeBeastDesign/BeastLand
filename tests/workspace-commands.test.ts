@@ -6,7 +6,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { runCommand, flagsFor, type CommandContext, type LineHandle, type Span } from "$lib/shell/protocol.js";
-import { workspaceCommands, recordSuggestions } from "$lib/tiling/workspace-commands.js";
+import { workspaceCommands, recordSuggestions, actionFlagsFor, runKindAction, actionSuggestions } from "$lib/tiling/workspace-commands.js";
 import { kinds, type KindSpec } from "$lib/tiling/kinds.svelte.js";
 import { workspace } from "$lib/tiling/workspace.svelte.js";
 import { viewFrom, type FieldDef } from "$lib/tiling/views.js";
@@ -109,7 +109,13 @@ describe("workspace commands against a foreign kind", () => {
     expect((await run("#be paint"))[0].text).toBe("painted");
     expect(painted).toEqual(["widget:alpha000:--coat 2", "widget:beta0000:"]);
     const at = workspaceCommands.find((c) => c.name === "@<n>")!;
-    expect(at.subcommands?.map((s) => s.name)).toEqual(["move", "close", "title", "set", "paint"]);
+    // Verbs are per target kind: static subcommands stay generic, completion adds the kind's actions.
+    expect(at.subcommands?.map((s) => s.name)).toEqual(["move", "close", "title", "set"]);
+    expect(at.complete!(["@1", ""], workspaceCommands).map((s) => s.value)).toEqual(["paint"]);
+    expect(at.complete!(["@9", ""], workspaceCommands)).toEqual([]);
+    const hash = workspaceCommands.find((c) => c.name === "#<id>")!;
+    expect(hash.complete!(["#be", ""], workspaceCommands).map((s) => s.value)).toEqual(["paint"]);
+    expect(actionSuggestions("nope")).toEqual([]);
     expect(flagsFor(at, ["@1", "paint", "--"]).map((f) => f.name)).toEqual(["coat"]);
     expect(flagsFor(at, ["@1", "set", "--"]).map((f) => f.name)).toEqual(["colour"]);
   });
@@ -129,5 +135,58 @@ describe("workspace commands against a foreign kind", () => {
       "#al Alpha widget",
       "#be Beta widget",
     ]);
+  });
+});
+
+describe("slice helpers", () => {
+  it("actionFlagsFor answers `<slice> #id <verb> …` lines only", () => {
+    expect(actionFlagsFor(widgetKind, ["#al", "paint", "--"])?.map((f) => f.name)).toEqual(["details", "full", "coat"]);
+    expect(actionFlagsFor(widgetKind, ["#al", "paint"], [])?.map((f) => f.name)).toEqual(["coat"]);
+    expect(actionFlagsFor(widgetKind, ["#al", "nope"])).toBeNull();
+    expect(actionFlagsFor(widgetKind, ["list"])).toBeNull();
+  });
+
+  it("runKindAction dispatches and awaits; false for unknown verbs", async () => {
+    const lines: string[] = [];
+    const ctx: CommandContext = {
+      print: (t) => {
+        lines.push(typeof t === "string" ? t : "");
+        return { set: () => {}, append: () => {} };
+      },
+      clear: () => {},
+      commands: workspaceCommands,
+      signal: new AbortController().signal,
+    };
+    expect(await runKindAction(widgetKind, "widget:alpha000", "paint", ["--coat", "1"], ctx)).toBe(true);
+    expect(lines).toEqual(["painted"]);
+    expect(await runKindAction(widgetKind, "widget:alpha000", "nope", [], ctx)).toBe(false);
+  });
+
+  it("an async action is awaited by @n and #id", async () => {
+    let settled = false;
+    const off = kinds.register({
+      ...widgetKind,
+      kind: "slow",
+      ids: () => ["slow:one0000"],
+      exists: () => true,
+      actions: [
+        {
+          name: "wait",
+          description: "Wait",
+          run: async (_id, _args, ctx) => {
+            await new Promise((r) => setTimeout(r, 5));
+            settled = true;
+            ctx.print("waited", "output");
+          },
+        },
+      ],
+    });
+    try {
+      const out = await run("#on wait");
+      expect(settled).toBe(true);
+      expect(out.map((l) => l.text)).toEqual(["waited"]);
+    } finally {
+      off();
+    }
   });
 });

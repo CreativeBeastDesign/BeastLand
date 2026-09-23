@@ -399,6 +399,31 @@ Things that will hurt during extraction, in order:
   `fractalpop` is a candidate app-side highlighter (5 KB, CSS-variable
   themed) but is version 0 with no stated license, so it isn't wired in.
   `marked` is the package's first runtime dependency (zero deps, 40 KB).
+- **Consumer round 1 (Dachsboard, 2026-09-22).** From the first real
+  integration: `bareId` strips any 2–5-letter type tag (`inv_`, `prj_`),
+  not just `doc_`; `KindSpec.context` (what an LLM sees) and async
+  `KindAction.run` (awaited, so `ctx.signal` applies); `@n `/`#id `
+  completion offers the *target kind's* verbs only (static `subcommands`
+  stay the four generic ones); `actionFlagsFor` + `runKindAction` for the
+  `<slice> #id <verb>` line every slice re-implemented; `helpText`/
+  `helpIndex` are the plain-text twins of `help` (same rows, can't drift);
+  `Span.tone` gained `error`/`warning` and `Span.strike`; `ctx.blocks` /
+  `shell.blocks` expose the transcript read-only (`TerminalBlock`);
+  `proseSpans(text, { validate })` and `<Markdown validateLine>` strike
+  through invalid proposals with their reason; `EmptyRecord` and `MOD`
+  exported; `beastland/styles` has a `types` condition. Documented in
+  HANDOFF: path-dependency Vite settings, wallpapers are app assets,
+  settings registration, SurrealDB `⟨key⟩` escaping.
+- **Prompt grows, then scrolls.** The input is a one-row `<textarea>` whose
+  height is written from `scrollHeight` (`autoGrow`), capped by
+  `maxInputLines` (6) — past that it scrolls internally and the syntax
+  overlay is scrolled in lockstep (`syncScroll`), since that layer paints
+  the text while the textarea paints only the caret. A `ResizeObserver`
+  re-measures on width changes only (reacting to our own height writes
+  would loop); pasted newlines are flattened to spaces because `tokenize`
+  splits on spaces and the prompt is single-line by design. ↑/↓ stay
+  history — multi-line editing (⇧⏎ + vertical caret movement) is still the
+  deferred item.
 - **Keymap matching:** letters match on `event.key` — `code` is the
   physical US position, so on QWERTZ the key labelled Z reports `KeyY` and
   `⌃z`/`⌃⇧z` never fired for the author. Digits and named keys keep using

@@ -11,10 +11,16 @@
 export const SHORT_ID_MIN = 2;
 export const SHORT_ID_DISPLAY = 8;
 
-/** Strip the table/namespace prefix: `customer:xpo…` → `xpo…`, `document:doc_fab9…` → `fab9…`. */
+/**
+ * Strip the table/namespace prefix and a short type tag: `customer:xpo…` →
+ * `xpo…`, `document:doc_fab9…` → `fab9…`, `invoice:inv_4c…` → `4c…`. A tag
+ * is 2–5 lowercase letters before an underscore; it is only stripped when
+ * something is left afterwards, so `note:ab_` stays `ab_`.
+ */
 export function bareId(id: string): string {
   const afterTable = id.includes(":") ? id.slice(id.indexOf(":") + 1) : id;
-  return afterTable.replace(/^doc_/, "");
+  const stripped = afterTable.replace(/^[a-z]{2,5}_/, "");
+  return stripped.length > 0 ? stripped : afterTable;
 }
 
 /** Length of the shortest prefix of `bare` that no other id in `all` shares. */

@@ -35,6 +35,8 @@ export { default as CustomerCard } from "$lib/components/molecules/CustomerCard.
 export { default as DocumentCard } from "$lib/components/molecules/DocumentCard.svelte";
 export { default as Tile } from "$lib/components/organisms/Tile.svelte";
 export { default as TilingWorkspace } from "$lib/components/organisms/TilingWorkspace.svelte";
+export { default as EmptyRecord } from "$lib/components/tiles/EmptyRecord.svelte";
+export { MOD, MODIFIER, hasModifier } from "$lib/shell/keys.js";
 export * from "$lib/tiling/types.js";
 export * from "$lib/tiling/ids.js";
 export { workspace } from "$lib/tiling/workspace.svelte.js";
@@ -53,7 +55,6 @@ export * from "$lib/wallpapers.js";
 export { shell } from "$lib/shell/state.svelte.js";
 export * from "$lib/shell/commands.js";
 export * from "$lib/shell/completion.js";
-export { proseSpans } from "$lib/shell/prose.js";
 export { registry } from "$lib/shell/registry.svelte.js";
 export {
   storage,
@@ -66,6 +67,7 @@ export {
 } from "$lib/shell/storage.js";
 export { defaultKeymap, describeKeymap, resolveKey, type KeyBinding, type Action } from "$lib/shell/keymap.js";
 export { commandBridge, runBridge } from "$lib/shell/bridge.js";
+export { proseSpans, commandLineSpans, isRunnableFenceInfo, type LineVerdict, type ProseOptions } from "$lib/shell/prose.js";
 export { portal } from "$lib/actions/portal.js";
 export { overflowFade } from "$lib/actions/overflowFade.js";
 

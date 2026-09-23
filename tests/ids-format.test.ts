@@ -7,6 +7,14 @@ describe("short ids", () => {
   const all = ["customer:xpoakahew4rsp2stfg0y", "customer:xq7lm2ndk9vbf3wh1t8e", "document:doc_fab90cb3-c39b"];
   it("strips namespace and doc_ prefix", () => {
     expect(bareId("document:doc_fab90cb3")).toBe("fab90cb3");
+    // Any short lowercase type tag before an underscore is stripped, not just `doc_`.
+    expect(bareId("invoice:inv_4c1d")).toBe("4c1d");
+    expect(bareId("project:prj_9f")).toBe("9f");
+    expect(bareId("catalog_item:cat_widget-a")).toBe("widget-a");
+    expect(bareId("conversation:conv_ab12")).toBe("ab12");
+    expect(bareId("customer:xpoakahew4rsp2stfg0y")).toBe("xpoakahew4rsp2stfg0y"); // no tag
+    expect(bareId("note:ab_")).toBe("ab_"); // nothing would be left
+    expect(bareId("x:toolongtag_1")).toBe("toolongtag_1"); // tags are 2–5 letters
   });
   it("uses the shortest unique prefix, min 2 chars", () => {
     expect(shortId(all[0], all).short).toBe("xp");

@@ -10,7 +10,7 @@ import { applyTheme } from "$lib/theme/index.js";
 import { defaultTheme, themeIds, themes } from "$lib/theme/themes.svelte.js";
 import { looks } from "$lib/theme/looks.svelte.js";
 import { storage } from "./storage.js";
-import type { Intent } from "./commands.js";
+import type { Intent, TerminalBlock } from "./commands.js";
 import { defaultWallpaper, wallpaperIds, wallpapers } from "$lib/wallpapers.svelte.js";
 
 const STORAGE_KEY = "beastland:shell";
@@ -61,6 +61,7 @@ function createShell() {
   let terminalFocus: (() => void) | null = null;
   let terminalRun: ((line: string) => void) | null = null;
   let terminalInsert: ((text: string, trailingSpace?: boolean) => void) | null = null;
+  let terminalBlocks: (() => readonly TerminalBlock[]) | null = null;
 
   // What the line being typed is about to do (see `Intent`), for surfaces to
   // preview: target glow, hints, ghost rectangles.
@@ -183,6 +184,19 @@ function createShell() {
         if (terminalRun === run) terminalRun = null;
         if (terminalInsert === insert) terminalInsert = null;
       };
+    },
+
+    /** Called by the Terminal on mount so `shell.blocks` can read the transcript. */
+    registerBlocks(read: () => readonly TerminalBlock[]): () => void {
+      terminalBlocks = read;
+      return () => {
+        if (terminalBlocks === read) terminalBlocks = null;
+      };
+    },
+
+    /** The mounted Terminal's blocks (oldest first), or `[]` without one. Reactive: reads the Terminal's state. */
+    get blocks(): readonly TerminalBlock[] {
+      return terminalBlocks?.() ?? [];
     },
 
     /** Run a line through the mounted Terminal (lands in its history/blocks). */

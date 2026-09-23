@@ -29,6 +29,7 @@
    */
   import { parseMarkdown } from "$lib/markdown/parse.js";
   import { splitRefs, isRunnableFence } from "$lib/markdown/refs.js";
+  import type { LineVerdict } from "$lib/shell/prose.js";
   import type { MarkedToken, Token, Tokens } from "marked";
 
   import Surface from "$lib/components/atoms/Surface.svelte";
@@ -44,9 +45,15 @@
     highlight?: (code: string, lang: string | undefined) => HighlightSpan[] | string;
     /** Tighter spacing for tiles. */
     compact?: boolean;
+    /**
+     * Validate each runnable fence line before it becomes clickable (same
+     * hook as `proseSpans`' `validate`). Invalid lines render struck through
+     * with their reason and carry no command.
+     */
+    validateLine?: (line: string) => LineVerdict;
   };
 
-  let { source, oncommand, highlight, compact = false }: Props = $props();
+  let { source, oncommand, highlight, compact = false, validateLine }: Props = $props();
 
   let tokens = $derived(parseMarkdown(source));
 
@@ -159,11 +166,11 @@
 
 {#snippet fenceBody(token: Tokens.Code, lang: string | undefined)}
   {#if isRunnableFence(lang)}
-    {#each token.text.split("\n") as line, i (i)}{#if i > 0}{"\n"}{/if}{#if line.trim().length > 0 && oncommand}<button
+    {#each token.text.split("\n") as line, i (i)}{#if i > 0}{"\n"}{/if}{#if line.trim().length > 0 && oncommand}{@const verdict = validateLine?.(line) ?? { ok: true }}{#if verdict.ok}<button
           type="button"
           class="markdown__fence-line"
           onclick={(event) => activate(event, line)}>{line}</button
-        >{:else}{line}{/if}{/each}
+        >{:else}<s class="markdown__fence-line--invalid">{line}</s><span class="markdown__fence-reason">  ✗ {verdict.reason}</span>{/if}{:else}{line}{/if}{/each}
   {:else if highlight}
     {@const result = highlight(token.text, lang)}
     {#if typeof result === "string"}{result}{:else}{#each result as span, i (i)}<span
@@ -516,6 +523,15 @@
     margin: 0;
     white-space: pre;
     color: var(--color-text-med);
+  }
+
+  .markdown__fence-line--invalid {
+    color: var(--color-danger);
+    text-decoration-thickness: 1px;
+  }
+
+  .markdown__fence-reason {
+    color: var(--color-text-low);
   }
 
   .markdown__fence-line {

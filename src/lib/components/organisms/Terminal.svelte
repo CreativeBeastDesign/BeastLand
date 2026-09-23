@@ -10,6 +10,7 @@
     type PrintOptions,
     type Span,
     type Suggestion,
+    type TerminalBlock,
     knownFlags,
     matchCommand,
     previewFor,
@@ -59,6 +60,12 @@
      * status dots); the Terminal itself knows nothing about workspaces.
      */
     header?: Snippet;
+    /**
+     * How many lines the prompt may grow to before it scrolls instead.
+     * The field starts at one line and grows with the command; past this
+     * many it keeps the caret in view and scrolls internally.
+     */
+    maxInputLines?: number;
   };
 
   let {
@@ -73,6 +80,7 @@
     dispatch = true,
     historyKey,
     header,
+    maxInputLines = 6,
   }: Props = $props();
 
   // Explicit `commands` prop wins; otherwise follow the shared registry so
@@ -91,6 +99,8 @@
     collapsed: boolean;
     kind: "ack" | "data" | "error";
     selected?: boolean;
+    startedAt: number;
+    finishedAt?: number;
     /**
      * True from the moment a submitted line's command starts running until
      * it resolves (or rejects). A running block is never auto-folded and its
@@ -114,6 +124,7 @@
       lines: motd.map((text): OutputLine => ({ kind: "system", text })),
       collapsed: false,
       kind: "data",
+      startedAt: Date.now(),
       running: false,
     },
   ]);
@@ -173,7 +184,8 @@
   const popupOpen = $derived(suggestions.length > 0 && input.length > 0 && !popupDismissed);
 
   let outputEl: HTMLDivElement | undefined;
-  let inputEl: HTMLInputElement | undefined;
+  let inputEl: HTMLTextAreaElement | undefined;
+  let syntaxEl: HTMLDivElement | undefined;
 
   // `role="log"` on the output already exposes the full transcript to
   // assistive tech; making it `aria-live` too re-announces everything on
@@ -221,6 +233,7 @@
       collapsed: false,
       kind: "ack",
       running: false,
+      startedAt: Date.now(),
     };
     blocks.push(block);
     // Read back through the reactive array: Svelte wraps pushed objects in
@@ -289,6 +302,19 @@
     selectedBlockId = null;
   }
 
+  /** Read-only view of the transcript (see `TerminalBlock`); shared with `shell.blocks`. */
+  function snapshotBlocks(): TerminalBlock[] {
+    return blocks.map((b) => ({
+      id: b.id,
+      input: b.input,
+      kind: b.kind,
+      running: b.running,
+      lines: b.lines,
+      startedAt: b.startedAt,
+      finishedAt: b.finishedAt,
+    }));
+  }
+
   /** Build the ctx a submitted line's command runs with: prints target `block`. */
   function makeContext(block: Block, signal: AbortSignal): CommandContext {
     return {
@@ -296,6 +322,9 @@
       clear,
       get commands() {
         return activeCommands;
+      },
+      get blocks() {
+        return snapshotBlocks();
       },
       signal,
     };
@@ -350,6 +379,7 @@
       } finally {
         controllers.delete(block.id);
         block.running = false;
+        block.finishedAt = Date.now();
       }
     }
 
@@ -515,17 +545,64 @@
     shell.setPreview(null);
   }
 
+  /**
+   * Grow the field to its content, up to `maxInputLines` (the CSS
+   * `max-height`), so a long command is readable instead of scrolled out of
+   * sight. Past the cap the textarea scrolls internally and keeps the caret
+   * visible; `syncScroll` drags the syntax overlay along, since that layer
+   * paints the text while the textarea only paints the caret.
+   */
+  function autoGrow() {
+    if (!inputEl) return;
+    inputEl.style.height = "auto"; // measure the content, not the old box
+    inputEl.style.height = `${inputEl.scrollHeight}px`;
+  }
+
+  function syncScroll() {
+    if (syntaxEl && inputEl) syntaxEl.scrollTop = inputEl.scrollTop;
+  }
+
+  /**
+   * A pasted newline would land inside a token (`tokenize` splits on spaces
+   * only) and the prompt is single-line by design, so flatten it.
+   */
+  function handleInput(event: Event) {
+    const el = event.currentTarget as HTMLTextAreaElement;
+    if (!/[\n\r]/.test(el.value)) return;
+    const caret = el.selectionStart;
+    input = el.value.replace(/[\n\r]+/g, " ");
+    tick().then(() => {
+      const at = Math.min(caret, input.length);
+      el.setSelectionRange(at, at);
+    });
+  }
+
   function focusInput() {
     inputEl?.focus();
   }
 
   onMount(() => {
     focusInput();
+    autoGrow();
+    // The panel can change width (`focusWidth`, viewport), which re-wraps the
+    // command and changes its height. Width only: reacting to our own height
+    // writes would loop.
+    let lastWidth = inputEl?.clientWidth ?? 0;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      if (width === lastWidth) return;
+      lastWidth = width;
+      autoGrow();
+    });
+    if (inputEl) observer.observe(inputEl);
     const unregisterFocus = shell.registerTerminal(focusInput);
     const unregisterRun = shell.registerRunner((line) => void submitLine(line), insertText);
+    const unregisterBlocks = shell.registerBlocks(snapshotBlocks);
     return () => {
+      observer.disconnect();
       unregisterFocus();
       unregisterRun();
+      unregisterBlocks();
       // Don't leave a streaming `fetch`/loop running after the Terminal is gone.
       for (const controller of controllers.values()) controller.abort(abortError());
       controllers.clear();
@@ -535,6 +612,15 @@
   $effect(() => {
     // Publish what the partially typed line would do, per keystroke.
     shell.setPreview(previewFor(input, activeCommands));
+  });
+
+  $effect(() => {
+    // Re-measure after any value change — typing, ↑↓ history, `insert`.
+    input;
+    tick().then(() => {
+      autoGrow();
+      syncScroll();
+    });
   });
 
 
@@ -612,6 +698,7 @@
   aria-label="Terminal"
   style:--terminal-width={width}
   style:--terminal-focus-width={focusWidth ?? width}
+  style:--terminal-input-lines={maxInputLines}
   onclick={focusInput}
 >
 <div class="terminal__panel grain">
@@ -736,12 +823,12 @@
     <div class="terminal__prompt-row">
       <span class="terminal__prompt-glyph">{prompt}</span>
       <div class="terminal__field">
-        <div class="terminal__syntax" aria-hidden="true">
+        <div class="terminal__syntax" aria-hidden="true" bind:this={syntaxEl}>
           {#each syntaxTokens as token, i (i)}<span data-role={token.role}>{token.text}</span>{/each}
         </div>
-      <input
+      <textarea
         class="terminal__input"
-        type="text"
+        rows="1"
         spellcheck="false"
         autocomplete="off"
         aria-label="Terminal input"
@@ -753,8 +840,10 @@
         bind:this={inputEl}
         bind:value={input}
         onkeydown={handleKeydown}
+        oninput={handleInput}
+        onscroll={syncScroll}
         onblur={handleBlur}
-      />
+      ></textarea>
       </div>
     </div>
   </div>
@@ -768,12 +857,13 @@
         <button
           type="button"
           class="terminal__span terminal__span--link"
+          class:terminal__span--strike={span.strike}
           data-tone={span.tone}
           onclick={(event) => handleSpanClick(event, span)}
         >{span.text}</button
         >
       {:else}
-        <span class="terminal__span" data-tone={span.tone}>{span.text}</span>
+        <span class="terminal__span" class:terminal__span--strike={span.strike} data-tone={span.tone}>{span.text}</span>
       {/if}
     {/each}
   {:else}
@@ -1019,6 +1109,19 @@
     color: var(--color-accent);
   }
 
+  .terminal__span[data-tone="error"] {
+    color: var(--color-danger);
+  }
+
+  .terminal__span[data-tone="warning"] {
+    color: var(--color-warning);
+  }
+
+  .terminal__span--strike {
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+
   .terminal__span--link {
     all: unset;
     cursor: pointer;
@@ -1048,7 +1151,8 @@
 
   .terminal__prompt-row {
     display: flex;
-    align-items: center;
+    /* Top-aligned: the glyph stays on the first line of a wrapped command. */
+    align-items: flex-start;
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
     border-top: var(--border-width) solid var(--color-border);
@@ -1176,13 +1280,15 @@
     min-width: 0;
   }
 
-  /* Mirrors the input exactly (same font/metrics, zero padding) and sits
-     underneath it; the input itself paints only the caret and selection. */
+  /* Mirrors the input exactly (same font/metrics, wrapping and zero padding)
+     and sits underneath it; the input itself paints only the caret and
+     selection. Scrolled in lockstep by `syncScroll` once the field is capped. */
   .terminal__syntax {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    white-space: pre;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
     overflow: hidden;
     color: var(--color-text-high);
     font-family: var(--font-mono);
@@ -1217,20 +1323,32 @@
     text-decoration-thickness: 1px;
   }
 
+  /* Height is written by `autoGrow`; the cap turns growth into scrolling. */
   .terminal__input {
     position: relative;
     display: block;
     width: 100%;
+    max-height: calc(var(--text-sm) * 1.5 * var(--terminal-input-lines, 6));
     padding: 0;
     margin: 0;
     background: transparent;
     border: none;
     outline: none;
+    resize: none;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
     /* Text is painted by .terminal__syntax underneath. */
     color: transparent;
     font-family: var(--font-mono);
     font-size: var(--text-sm);
     line-height: 1.5;
     caret-color: var(--color-accent);
+    scrollbar-width: none;
+  }
+
+  .terminal__input::-webkit-scrollbar {
+    width: 0;
+    height: 0;
   }
 </style>

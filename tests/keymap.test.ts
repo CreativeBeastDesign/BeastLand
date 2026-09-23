@@ -26,6 +26,10 @@ describe("keymap", () => {
     // A letter binding never fires for a different letter that merely shares the physical position.
     expect(resolveKey(ev({ ctrlKey: true, code: "KeyZ", key: "y" }), defaultKeymap, true)).toBeNull();
   });
+  it("resolves synthetic events that carry only `key` (browser automation)", () => {
+    expect(resolveKey(ev({ ctrlKey: true, code: "", key: "h" }), defaultKeymap, true)?.action).toBe("select-left");
+    expect(resolveKey(ev({ ctrlKey: true, code: "", key: "2" }), defaultKeymap, true)).toEqual({ action: "select-n", n: 2 });
+  });
   it("honours a custom table", () => {
     const custom: KeyBinding[] = [{ action: "close", code: "KeyX", mod: true, group: "close", description: "close" }];
     expect(resolveKey(ev({ ctrlKey: true, code: "KeyX" }), custom, true)?.action).toBe("close");

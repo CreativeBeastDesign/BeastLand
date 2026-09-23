@@ -84,28 +84,53 @@ function inlineSpans(text: string): Span[] {
   return spans;
 }
 
+/** Verdict on one proposed command line (a runnable fence line). */
+export type LineVerdict = { ok: true } | { ok: false; reason: string };
+
+export type ProseOptions = {
+  /**
+   * Validate each runnable fence line before it becomes clickable. An
+   * invalid line renders struck through in the error tone with its reason
+   * after it, and carries no `command` — the human sees why before anything
+   * can run. Apps check proposals against the command registry here.
+   */
+  validate?: (line: string) => LineVerdict;
+};
+
+/** Is this fence info string one whose lines are commands? */
+export function isRunnableFenceInfo(info: string | undefined): boolean {
+  return info !== undefined && RUNNABLE_FENCE_INFO.has(info);
+}
+
+/** Spans for one runnable fence line: clickable, or struck through with its reason. */
+export function commandLineSpans(line: string, validate?: ProseOptions["validate"]): Span[] {
+  const verdict = validate?.(line) ?? { ok: true };
+  if (verdict.ok) return [{ text: line, tone: "accent", command: line }];
+  return [
+    { text: line, tone: "error", strike: true },
+    { text: `  ✗ ${verdict.reason}`, tone: "muted" },
+  ];
+}
+
 /** Parse one fenced block into spans: verbatim `code`, or one clickable span per command line. */
-function fenceSpans(info: string, body: string): Span[] {
+function fenceSpans(info: string, body: string, opts: ProseOptions): Span[] {
   const runnable = RUNNABLE_FENCE_INFO.has(info);
   const lines = body.split("\n");
   const spans: Span[] = [];
   lines.forEach((line, i) => {
-    spans.push(
-      runnable && line.trim().length > 0
-        ? { text: line, tone: "accent", command: line }
-        : { text: line, tone: "code" },
-    );
+    if (runnable && line.trim().length > 0) spans.push(...commandLineSpans(line, opts.validate));
+    else spans.push({ text: line, tone: "code" });
     if (i < lines.length - 1) spans.push({ text: "\n" });
   });
   return spans;
 }
 
 /** Turn prose `text` into the `Span[]` the Terminal renders a line from. */
-export function proseSpans(text: string): Span[] {
+export function proseSpans(text: string, opts: ProseOptions = {}): Span[] {
   const spans: Span[] = [];
   segment(text).forEach((seg, i) => {
     if (i > 0) spans.push({ text: "\n" }); // the fence delimiter line's own newline
-    spans.push(...(seg.kind === "text" ? inlineSpans(seg.text) : fenceSpans(seg.info, seg.body)));
+    spans.push(...(seg.kind === "text" ? inlineSpans(seg.text) : fenceSpans(seg.info, seg.body, opts)));
   });
   return spans;
 }

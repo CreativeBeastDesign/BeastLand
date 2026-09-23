@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { proseSpans } from "$lib/shell/prose.js";
+import { commandLineSpans, proseSpans } from "$lib/shell/prose.js";
 
 describe("proseSpans", () => {
   it("renders plain text as a single untoned span", () => {
@@ -95,5 +95,22 @@ describe("proseSpans", () => {
       { text: "\n" },
       { text: "pwd", tone: "accent", command: "pwd" },
     ]);
+  });
+});
+
+describe("proseSpans validate", () => {
+  const validate = (line: string) => (line.startsWith("ls") ? ({ ok: true } as const) : ({ ok: false, reason: "no such command" } as const));
+
+  it("keeps valid fence lines clickable and strikes invalid ones with their reason", () => {
+    const spans = proseSpans("```beast\nls\nfrobnicate --x\n```", { validate });
+    expect(spans).toContainEqual({ text: "ls", tone: "accent", command: "ls" });
+    expect(spans).toContainEqual({ text: "frobnicate --x", tone: "error", strike: true });
+    expect(spans).toContainEqual({ text: "  ✗ no such command", tone: "muted" });
+    expect(spans.find((s) => s.text === "frobnicate --x")?.command).toBeUndefined();
+  });
+
+  it("commandLineSpans is the shared per-line rule", () => {
+    expect(commandLineSpans("ls")).toEqual([{ text: "ls", tone: "accent", command: "ls" }]);
+    expect(commandLineSpans("zz", validate)[0]).toMatchObject({ strike: true, tone: "error" });
   });
 });

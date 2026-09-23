@@ -24,7 +24,7 @@
 import { workspace } from "./workspace.svelte.js";
 import { shortId } from "./ids.js";
 import type { Container, Direction, WorkspaceLayout } from "./types.js";
-import { kinds } from "./kinds.svelte.js";
+import { kinds, type KindSpec } from "./kinds.svelte.js";
 import { fieldsAt, type FieldDef, type Level, type ViewRow } from "./views.js";
 import {
   flag,
@@ -272,8 +272,8 @@ function doMove(container: Container, args: string[], ctx: CommandContext) {
   ctx.print(result.ok ? `moved @${container.id} ${dir}` : result.reason, result.ok ? "output" : "error");
 }
 
-/** Dispatch trailing args of `@n …` / `#id …` onto the resolved container. */
-export function applyContainerArgs(container: Container, args: string[], ctx: CommandContext) {
+/** Dispatch trailing args of `@n …` / `#id …` onto the resolved container. Async when a kind action is. */
+export function applyContainerArgs(container: Container, args: string[], ctx: CommandContext): void | Promise<void> {
   if (args.length === 0) return;
   const [head, ...rest] = args;
 
@@ -301,10 +301,7 @@ export function applyContainerArgs(container: Container, args: string[], ctx: Co
 
   // Kind-specific verbs (`@n item new …`) come from the registry.
   const action = kinds.get(container.kind)?.actions?.find((a) => a.name === head);
-  if (action) {
-    action.run(container.contentId, rest, ctx);
-    return;
-  }
+  if (action) return action.run(container.contentId, rest, ctx);
   if (kinds.all.some((k) => k.actions?.some((a) => a.name === head))) {
     ctx.print(`@${container.id} (${container.kind}) has no "${head}"`, "error");
     return;
@@ -495,12 +492,14 @@ function kindOfHash(token: string): string | undefined {
 }
 
 /**
- * Subcommands shared by `@n` and `#id`: the four generic verbs plus every
- * registered kind's `actions`. Computed on read so completion and `help`
- * follow whatever slices are mounted.
+ * Subcommands shared by `@n` and `#id`: the four generic verbs. A kind's
+ * `actions` are NOT listed here — they depend on the target, so the
+ * completion popup gets them from `complete(args)` once the target is
+ * known (`@1 ` on a customer offers the customer's verbs only), and their
+ * flags come through `completeFlags` (`containerFlagsFor`).
  */
 function containerSubcommands(): SubcommandSpec[] {
-  const base: SubcommandSpec[] = [
+  return [
     { name: "move", description: "Move the container", flags: directionFlags },
     { name: "close", description: "Close the container" },
     { name: "title", description: "Rename the container" },
@@ -513,15 +512,43 @@ function containerSubcommands(): SubcommandSpec[] {
       },
     },
   ];
-  const seen = new Set(base.map((s) => s.name));
-  for (const spec of kinds.all) {
-    for (const a of spec.actions ?? []) {
-      if (seen.has(a.name)) continue;
-      seen.add(a.name);
-      base.push({ name: a.name, description: a.description, flags: a.flags });
-    }
-  }
-  return base;
+}
+
+/** A kind's `actions` as subcommand suggestions — the verbs `@n <verb>` / `#id <verb>` accept for that target. */
+export function actionSuggestions(kind: string | undefined): Suggestion[] {
+  if (!kind) return [];
+  return (kinds.get(kind)?.actions ?? []).map((a) => ({ value: a.name, description: a.description, kind: "subcommand" as const }));
+}
+
+/**
+ * Flags for a `<slice> #id <verb> …` line: the verb's own flags on top of
+ * `base` (the command-level flags, `detailFlags` by default), or null when
+ * the line isn't that shape — then `knownFlags` applies as usual. Hand it to
+ * a command's `completeFlags` so `#id <verb> --…` completes and doesn't warn.
+ */
+export function actionFlagsFor(spec: KindSpec, args: string[], base: FlagSpec[] = detailFlags): FlagSpec[] | null {
+  if (!args[0]?.startsWith("#")) return null;
+  const action = spec.actions?.find((a) => a.name === args[1]);
+  return action ? [...base, ...(action.flags ?? [])] : null;
+}
+
+/**
+ * Dispatch `<slice> #id <verb> …` onto the kind's action. Resolves to false
+ * when the kind has no such verb (print your usage line then); otherwise
+ * awaits the action, so async actions get `ctx.signal`/`cancelled`
+ * semantics like any `Command.run`.
+ */
+export async function runKindAction(
+  spec: KindSpec,
+  contentId: string,
+  verb: string,
+  args: string[],
+  ctx: CommandContext,
+): Promise<boolean> {
+  const action = spec.actions?.find((a) => a.name === verb);
+  if (!action) return false;
+  await action.run(contentId, args, ctx);
+  return true;
 }
 
 const atCommand: Command = {
@@ -533,7 +560,11 @@ const atCommand: Command = {
   get subcommands() {
     return containerSubcommands();
   },
-  complete: (args) => (args.length === 1 ? containerSuggestions() : []),
+  complete: (args) => {
+    if (args.length === 1) return containerSuggestions();
+    if (args.length === 2) return actionSuggestions(kindOfAt(args[0]));
+    return [];
+  },
   run: (args, ctx) => {
     const [token, ...rest] = args;
     const id = parseInt(token.slice(1), 10);
@@ -551,7 +582,7 @@ const atCommand: Command = {
       ctx.print(`selected @${id}`, "output");
       return;
     }
-    applyContainerArgs(container, rest, ctx);
+    return applyContainerArgs(container, rest, ctx);
   },
   preview: (args) => {
     const [token, ...rest] = args;
@@ -573,7 +604,11 @@ const hashCommand: Command = {
   get subcommands() {
     return containerSubcommands();
   },
-  complete: (args) => (args.length === 1 ? recordSuggestions() : []),
+  complete: (args) => {
+    if (args.length === 1) return recordSuggestions();
+    if (args.length === 2) return actionSuggestions(kindOfHash(args[0]));
+    return [];
+  },
   run: (args, ctx) => {
     const [token, ...rest] = args;
     if (token === "#") {
@@ -612,7 +647,7 @@ const hashCommand: Command = {
       say(ctx, "selected ", resolved.id, ` @${container.id}`);
       return;
     }
-    applyContainerArgs(container, trailing, ctx);
+    return applyContainerArgs(container, trailing, ctx);
   },
   preview: (args) => {
     const [token, ...rest] = args;

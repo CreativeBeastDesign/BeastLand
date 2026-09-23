@@ -52,6 +52,12 @@ export type KindSpec = {
    */
   view?: ViewFn;
   /**
+   * What a language model should see for this record — the text an `ask`
+   * command puts in context. Redact (emails) or enrich (linked records)
+   * here; without it, apps fall back to `view(id, "full")` rendered as text.
+   */
+  context?: (contentId: string) => string;
+  /**
    * Extra verbs after a container ref — `@n <name> …` / `#id <name> …` —
    * e.g. `item` on documents. They join `move`/`close`/`title`/`set` in
    * completion and `help`; names must not collide with those four.
@@ -64,7 +70,8 @@ export type KindAction = {
   description: string;
   /** Flags the action accepts (completion + unknown-flag warnings). */
   flags?: FlagSpec[];
-  run: (contentId: string, args: string[], ctx: CommandContext) => void;
+  /** May be async: the dispatcher awaits it, so `ctx.signal` and `cancelled` apply like for `Command.run`. */
+  run: (contentId: string, args: string[], ctx: CommandContext) => void | Promise<void>;
 };
 
 export type SetResult =

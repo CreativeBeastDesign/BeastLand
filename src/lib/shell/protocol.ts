@@ -13,7 +13,9 @@
  */
 export type Span = {
   text: string;
-  tone?: "id" | "id-rest" | "key" | "muted" | "accent" | "bold" | "code";
+  tone?: "id" | "id-rest" | "key" | "muted" | "accent" | "bold" | "code" | "error" | "warning";
+  /** Struck through — an invalid proposal, a removed item. */
+  strike?: boolean;
   /**
    * Makes the span clickable: click runs this line through the dispatcher
    * (so it lands in history), ⇧-click inserts it into the prompt instead.
@@ -67,10 +69,29 @@ export type LineHandle = {
   append(delta: string): void;
 };
 
+/**
+ * A read-only view of one terminal block (a submitted line and its output),
+ * for commands and apps that need the transcript — an LLM's rolling
+ * context, "promote the last answer to a record". The Terminal owns the
+ * real blocks; this is a snapshot shape.
+ */
+export type TerminalBlock = {
+  id: number;
+  /** The submitted line; undefined for the motd/system block. */
+  input?: string;
+  kind: "ack" | "data" | "error";
+  running: boolean;
+  lines: OutputLine[];
+  startedAt: number;
+  finishedAt?: number;
+};
+
 export type CommandContext = {
   print: (text: string | Span[], kind?: OutputLine["kind"], opts?: PrintOptions) => LineHandle;
   clear: () => void;
   commands: Command[];
+  /** The terminal's blocks so far (oldest first), when a Terminal is dispatching; `[]` otherwise. */
+  blocks?: readonly TerminalBlock[];
   /**
    * Aborted when the user cancels this line (Esc while its block is still
    * running) or the Terminal unmounts. A streaming `run` should pass this to

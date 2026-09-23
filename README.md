@@ -32,7 +32,7 @@ and open items live in [Roadmap.md](Roadmap.md).
 ## Install
 
 ```bash
-npm install beastland
+npm install beastland      # not published yet: use a path dependency, see HANDOFF.md §3
 ```
 
 Import the stylesheet once in your root layout — fonts, tokens, utilities and
@@ -74,6 +74,12 @@ With no props the terminal dispatches lines to the **shell registry**: the
 built-in commands (`help`, `clear`, `theme`, `wallpaper`, `echo`, `about`,
 `time`) plus whatever you register. `help` and `help <command>` are generated
 from your declarations, so there is nothing to document by hand.
+
+The prompt starts one line tall and grows with the command — a long
+`customer new --name … --email …` stays readable instead of scrolling out of
+sight sideways. Past `maxInputLines` (6 by default) it stops growing and
+scrolls internally, keeping the caret in view; ↑/↓ remain history, as
+everywhere else in the shell.
 
 ## Your first command
 
@@ -645,7 +651,9 @@ type Command = {
 type FlagSpec = { name; short?; description; takesValue?; values?: string[] | (() => string[]) };
 type Suggestion = { value; label?; description?; kind?: "command" | "subcommand" | "flag" | "value"; boost? };
 type Intent = { target?; hint?; ghost?: { x; y; w; h }; invalid? };
-type Span = { text; tone?: "id" | "id-rest" | "key" | "muted" | "accent" | "bold" | "code"; command? };
+type Span = { text; tone?: "id" | "id-rest" | "key" | "muted" | "accent" | "bold" | "code" | "error" | "warning"; strike?; command? };
+/** Read-only snapshot of one terminal block (`ctx.blocks`, `shell.blocks`). */
+type TerminalBlock = { id; input?; kind: "ack" | "data" | "error"; running; lines: OutputLine[]; startedAt; finishedAt? };
 
 /** Returned by `ctx.print` — see Output → Streaming. */
 type LineHandle = { set(text: string | Span[]): void; append(delta: string): void };
@@ -654,6 +662,8 @@ type CommandContext = {
   print: (text: string | Span[], kind?: "output" | "error" | "system" | "prose", opts?: { hang?: number }) => LineHandle;
   clear: () => void;
   commands: Command[];
+  /** The transcript so far, oldest first (`[]` outside a mounted Terminal). */
+  blocks?: readonly TerminalBlock[];
   /** Aborted on Esc (while this line's block is running) or on unmount. */
   signal: AbortSignal;
 };
@@ -661,7 +671,12 @@ type CommandContext = {
 
 Helpers exported from the package: `parseArgs`, `flag`, `tokenize`,
 `matchCommand`, `previewFor`, `knownFlags`, `flagsFor`, `runCommand`,
-`candidatesFor`, `applySuggestion`, `fuzzyScore`, `rank`, `proseSpans`.
+`candidatesFor`, `applySuggestion`, `fuzzyScore`, `rank`, `proseSpans`
+(with `{ validate }` to strike through proposed command lines that fail a
+check — `commandLineSpans` is the per-line rule), `helpText(command)` /
+`helpIndex(commands)` (the plain text `help` prints, for embedding the
+grammar elsewhere), and for kinds with `actions`: `actionSuggestions`,
+`actionFlagsFor`, `runKindAction`.
 
 ### Beyond commands
 
