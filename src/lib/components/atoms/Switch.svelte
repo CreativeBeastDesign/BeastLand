@@ -36,6 +36,7 @@
     class="switch"
     class:switch--on={checked}
     data-size={size}
+    aria-label={label}
     {disabled}
     onclick={toggle}
     {...restProps}

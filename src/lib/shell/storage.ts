@@ -158,7 +158,8 @@ export const storage = {
   load(adapter: AsyncStorageAdapter, options: LoadOptions = {}): Promise<void> {
     const gen = ++generation;
     const keys = options.keys ?? [...hydrators.keys()];
-    const writes = (inFlightWrites = new Map<string, string | null>());
+    inFlightWrites = new Map<string, string | null>();
+    const writes = inFlightWrites;
     const run = async () => {
       const entries = await Promise.all(keys.map(async (key) => [key, await adapter.load(key)] as const));
       if (gen !== generation) return;
@@ -193,7 +194,10 @@ export const storage = {
    */
   register(key: string, hydrate: () => void): () => void {
     let set = hydrators.get(key);
-    if (!set) hydrators.set(key, (set = new Set()));
+    if (!set) {
+      set = new Set();
+      hydrators.set(key, set);
+    }
     set.add(hydrate);
     return () => {
       set.delete(hydrate);

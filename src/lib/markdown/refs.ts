@@ -23,11 +23,12 @@ export function splitRefs(text: string): Array<TextPart | RefPart> {
   const parts: Array<TextPart | RefPart> = [];
   let last = 0;
   REF_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = REF_RE.exec(text))) {
+  let match = REF_RE.exec(text);
+  while (match) {
     if (match.index > last) parts.push({ text: text.slice(last, match.index) });
     parts.push({ ref: match[0] });
     last = match.index + match[0].length;
+    match = REF_RE.exec(text);
   }
   if (last < text.length) parts.push({ text: text.slice(last) });
   return parts;

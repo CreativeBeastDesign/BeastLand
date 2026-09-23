@@ -36,7 +36,9 @@
     }
     const tail = items.slice(items.length - tailCount);
     const result: Entry[] = [{ item: items[0], isCurrent: false }, { isEllipsis: true }];
-    tail.forEach((item, i) => result.push({ item, isCurrent: i === tail.length - 1 }));
+    tail.forEach((item, i) => {
+      result.push({ item, isCurrent: i === tail.length - 1 });
+    });
     return result;
   });
 

@@ -191,7 +191,9 @@ export const shellCommands: Command[] = [
       if (!arg) {
         ctx.print(`current theme: ${shell.theme}`, "output");
         ctx.print("available themes:", "output");
-        themes.all.forEach((t, i) => ctx.print(numbered(i, t.id === shell.theme, t.id, t.label), "output"));
+        themes.all.forEach((t, i) => {
+          ctx.print(numbered(i, t.id === shell.theme, t.id, t.label), "output");
+        });
         return;
       }
 
@@ -235,7 +237,9 @@ export const shellCommands: Command[] = [
         }
         ctx.print(`current wallpaper: ${shell.wallpaper}`, "output");
         ctx.print("available wallpapers:", "output");
-        wallpapers.all.forEach((w, i) => ctx.print(numbered(i, w.id === shell.wallpaper, w.id, w.label), "output"));
+        wallpapers.all.forEach((w, i) => {
+          ctx.print(numbered(i, w.id === shell.wallpaper, w.id, w.label), "output");
+        });
         return;
       }
 
@@ -291,7 +295,9 @@ export const shellCommands: Command[] = [
           return;
         }
         ctx.print("available looks:", "output");
-        looks.all.forEach((l, i) => ctx.print(numbered(i, l.id === shell.look, l.id, l.label), "output"));
+        looks.all.forEach((l, i) => {
+          ctx.print(numbered(i, l.id === shell.look, l.id, l.label), "output");
+        });
         return;
       }
 

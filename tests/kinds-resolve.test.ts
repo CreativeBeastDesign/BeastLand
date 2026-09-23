@@ -18,7 +18,9 @@ const spec = (kind: string, ids: string[]): KindSpec => ({
 
 let offs: (() => void)[] = [];
 afterEach(() => {
-  offs.forEach((off) => off());
+  offs.forEach((off) => {
+    off();
+  });
   offs = [];
 });
 

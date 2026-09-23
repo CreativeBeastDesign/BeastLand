@@ -11,7 +11,7 @@
      the layout and is never blocked. -->
 <svelte:boundary>
   {#snippet pending()}
-    <div class="tiling-pending surface surface--glass grain" aria-busy="true" aria-label="Loading workspace">
+    <div class="tiling-pending surface surface--glass grain" role="status" aria-busy="true" aria-label="Loading workspace">
       <Skeleton lines={3} height="0.75rem" />
     </div>
   {/snippet}

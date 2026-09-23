@@ -2,7 +2,6 @@
 
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { onDestroy } from "svelte";
   import StatusItem from "$lib/components/molecules/StatusItem.svelte";
 
   type Props = {
@@ -31,8 +30,10 @@
     }, 30_000);
   }
 
-  onDestroy(() => {
-    if (interval) clearInterval(interval);
+  $effect(() => {
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   });
 </script>
 

@@ -14,7 +14,7 @@
   let { label, value, icon, children, ...restProps }: Props = $props();
 </script>
 
-<div class="status-item" aria-label={value ? `${label} ${value}` : label} {...restProps}>
+<div class="status-item" role="status" aria-label={value ? `${label} ${value}` : label} {...restProps}>
   {#if icon}
     <span class="status-item__icon">{@render icon()}</span>
   {/if}

@@ -567,6 +567,10 @@
     inputEl?.focus();
   }
 
+  // Deliberately `onMount`, not `$effect` (svelte-doctor's no-legacy-lifecycle
+  // is suppressed for this file): this sets up focus, a ResizeObserver and the
+  // shell registrations exactly once; a stray reactive read inside `$effect`
+  // would redo all of that on every keystroke.
   onMount(() => {
     focusInput();
     autoGrow();
@@ -679,6 +683,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<!-- biome-ignore lint/a11y/useKeyWithClickEvents: click-to-focus convenience only — the real keyboard entry point is the always-tabbable textarea below, not this panel -->
 <section
   class="terminal"
   aria-label="Terminal"
@@ -780,13 +785,16 @@
     {#if popupOpen}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <!-- biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: standard ARIA listbox pattern — ul/li carry listbox/option roles by design -->
       <ul class="terminal__popup" role="listbox" id="terminal-popup">
         {#each suggestions as s, i (s.value + i)}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_mouse_events_have_key_events -->
-          <li
+          <!-- biome-ignore lint/a11y/useFocusableInteractive: activedescendant pattern — focus stays on the prompt textarea, options are virtually focused via aria-activedescendant -->
+          <!-- biome-ignore lint/a11y/useKeyWithClickEvents: keyboard selection is handled on the prompt textarea (arrows + Tab/Enter); click here is a mouse convenience -->
+          <!-- biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: standard ARIA listbox pattern — li is the option -->
+          <li role="option"
             id={`terminal-suggestion-${i}`}
-            role="option"
             aria-selected={i === suggestionIndex}
             class="terminal__suggestion"
             class:terminal__suggestion--active={i === suggestionIndex}

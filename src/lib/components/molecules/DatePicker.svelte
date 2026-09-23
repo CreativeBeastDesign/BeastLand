@@ -20,6 +20,8 @@
     disabled?: boolean;
     locale?: string;
     weekStart?: 0 | 1;
+    /** Accessible name for the typeable field, since it has no visible `<label>` of its own. */
+    ariaLabel?: string;
     onchange?: (iso: string) => void;
   };
 
@@ -33,6 +35,7 @@
     disabled,
     locale = "de-CH",
     weekStart = 1,
+    ariaLabel,
     onchange,
   }: Props = $props();
 
@@ -273,6 +276,7 @@
       {placeholder}
       {disabled}
       value={inputText}
+      aria-label={ariaLabel ?? placeholder}
       role="combobox"
       aria-haspopup="dialog"
       aria-expanded={open}
@@ -311,6 +315,7 @@
 
       <div class="date-picker__grid" role="grid" tabindex="-1" aria-labelledby={headerId} onkeydown={handleGridKeydown}>
         {#each gridRows as row, ri (ri)}
+          <!-- biome-ignore lint/a11y/useFocusableInteractive: ARIA grid pattern — roving tabindex lives on the day buttons (gridcells), not the row -->
           <div class="date-picker__row" role="row">
             {#each row as day (toISO(day))}
               <button

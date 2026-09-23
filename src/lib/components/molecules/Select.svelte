@@ -215,13 +215,16 @@
   </button>
 
   {#if open}
+    <!-- biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: standard ARIA listbox pattern — ul/li carry listbox/option roles by design -->
     <ul bind:this={listboxEl} class="select__popup" role="listbox" id={listboxId} tabindex="-1">
       {#each options as opt, i (opt.value)}
         <!-- svelte-ignore a11y_click_events_have_key_events -- keyboard selection is handled on the
              trigger (arrows + Enter/Space via aria-activedescendant); click here is a mouse convenience. -->
-        <li
+        <!-- biome-ignore lint/a11y/useFocusableInteractive: activedescendant pattern — focus stays on the trigger, options are virtually focused via aria-activedescendant -->
+        <!-- biome-ignore lint/a11y/useKeyWithClickEvents: keyboard selection is handled on the trigger (arrows + Enter/Space); click here is a mouse convenience -->
+        <!-- biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: standard ARIA listbox pattern — li is the option -->
+        <li role="option"
           id={`${uid}-option-${i}`}
-          role="option"
           aria-selected={opt.value === value}
           aria-disabled={opt.disabled || undefined}
           data-index={i}

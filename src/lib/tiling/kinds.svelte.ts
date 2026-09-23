@@ -78,7 +78,7 @@ export type SetResult =
   | { ok: true; patch: Record<string, unknown> }
   | { ok: false; error: string };
 
-export type Resolved = { kind: string; id: string } | { ambiguous: string[] } | null;
+type Resolved = { kind: string; id: string } | { ambiguous: string[] } | null;
 
 function createKinds() {
   let specs = $state<Record<string, KindSpec>>({});

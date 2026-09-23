@@ -85,14 +85,15 @@ function inlineSpans(text: string): Span[] {
   const spans: Span[] = [];
   let last = 0;
   INLINE_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = INLINE_RE.exec(text))) {
+  let match = INLINE_RE.exec(text);
+  while (match) {
     if (match.index > last) spans.push({ text: text.slice(last, match.index) });
     const [full, code, bold, ref] = match;
     if (code !== undefined) spans.push({ text: code, tone: "code" });
     else if (bold !== undefined) spans.push({ text: bold, tone: "bold" });
     else if (ref !== undefined) spans.push({ text: ref, tone: "id", command: ref });
     last = match.index + full.length;
+    match = INLINE_RE.exec(text);
   }
   if (last < text.length) spans.push({ text: text.slice(last) });
   return spans;

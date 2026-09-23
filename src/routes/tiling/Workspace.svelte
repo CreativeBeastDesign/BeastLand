@@ -45,7 +45,7 @@
     // prune() reads the registry; untrack so this effect doesn't subscribe to
     // the state it just wrote and loop.
     untrack(() => workspace.prune());
-    return () => unregister.forEach((fn) => fn());
+    return () => unregister.forEach((fn) => { fn(); });
   });
 
   // "Logged" field on documents (see `registerDocumentExtras` for why this

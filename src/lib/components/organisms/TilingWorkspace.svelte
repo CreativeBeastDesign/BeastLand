@@ -219,7 +219,7 @@
     border-radius: var(--radius-window);
     pointer-events: none;
     opacity: 0.8;
-    transition: all var(--duration-fast) var(--ease-out);
+    transition: border-color var(--duration-fast) var(--ease-out);
   }
 
   .workspace__ghost--invalid {

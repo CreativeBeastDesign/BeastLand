@@ -290,7 +290,9 @@ describe("numbered selection (`wallpaper 2`, `theme 2`, `look 2`)", () => {
     } finally {
       shell.setTheme(before.theme);
       shell.setWallpaper(before.wallpaper);
-      offs.forEach((off) => off());
+      offs.forEach((off) => {
+        off();
+      });
     }
   });
 });

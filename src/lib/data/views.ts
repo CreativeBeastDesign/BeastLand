@@ -28,8 +28,6 @@ export {
   viewFrom,
   type FieldDef,
   type Level,
-  type ViewFn,
-  type ViewRow,
 } from "$lib/tiling/views.js";
 import { fieldsAt, type FieldDef, type Level } from "$lib/tiling/views.js";
 

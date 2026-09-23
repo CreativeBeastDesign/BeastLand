@@ -1,7 +1,7 @@
 <!-- src/lib/components/atoms/Tooltip.svelte -->
 
 <script lang="ts">
-  import { onDestroy, type Snippet } from "svelte";
+  import type { Snippet } from "svelte";
 
   type Placement = "top" | "bottom" | "left" | "right";
 
@@ -44,7 +44,9 @@
   }
 
   // A pending show timer would otherwise fire after the tooltip is gone.
-  onDestroy(clearTimer);
+  $effect(() => {
+    return clearTimer;
+  });
 </script>
 
 <span
