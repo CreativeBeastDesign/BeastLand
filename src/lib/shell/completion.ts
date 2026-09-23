@@ -8,7 +8,7 @@
  */
 
 import { indexCommands } from "./command-index.js";
-import { flagsFor, tokenize, type Command, type Suggestion } from "./protocol.js";
+import { flagsFor, inUnterminatedQuote, tokenize, type Command, type Suggestion } from "./protocol.js";
 
 // ---------------------------------------------------------------------------
 // Fuzzy scoring (fzf-style subsequence match)
@@ -105,7 +105,11 @@ export function rank(query: string, suggestions: Suggestion[], limit = 8): Sugge
 export function splitInput(input: string): { tokens: string[]; partial: string } {
   const tokens = tokenize(input);
   if (input.length === 0) return { tokens: [], partial: "" };
-  if (/\s$/.test(input)) return { tokens, partial: "" };
+  // A trailing space only ends a token outside quotes — inside an
+  // unterminated `"…"`/`'…'` it's part of the value still being typed, so
+  // `tokenize` folds it (and everything since the opening quote) into the
+  // last token, which is exactly the partial we want here.
+  if (/\s$/.test(input) && !inUnterminatedQuote(input, input.length)) return { tokens, partial: "" };
   return { tokens: tokens.slice(0, -1), partial: tokens[tokens.length - 1] ?? "" };
 }
 
@@ -152,6 +156,9 @@ function valueContext(command: Command, args: string[]): Suggestion[] | "free" |
  * input is empty or nothing matches.
  */
 export function candidatesFor(input: string, commands: Command[], limit = 8): Suggestion[] {
+  // Nothing to suggest while a quoted argument is still open — the token
+  // being typed is free text, not a command/flag/value name.
+  if (inUnterminatedQuote(input, input.length)) return [];
   const { tokens, partial } = splitInput(input);
   if (tokens.length === 0 && partial.length === 0) return [];
 

@@ -44,6 +44,10 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
+    // Only keys pressed on the tile itself: Enter/Space bubbling up from an
+    // input or textarea inside the tile body (chat input, note editor) must
+    // type, not select — `preventDefault` here swallowed them.
+    if (event.target !== event.currentTarget) return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       select();

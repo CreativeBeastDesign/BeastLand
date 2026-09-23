@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- Terminal: no completions while the caret is inside an unterminated quote;
+  `"` auto-closes (and `'` at the start of a token), steps over its closing
+  pair, wraps a selection, and Backspace removes an empty pair.
+- `tokenize` honours `'…'` when the quote starts a token (`don't` stays literal).
+- Tile: Enter/Space from inputs inside a tile no longer select the tile
+  (they were swallowed — no spaces in chat inputs, no newlines in editors).
+
 ## 0.2.0
 
 - `KindSpec.ready?: () => boolean` — a kind can report that its backing

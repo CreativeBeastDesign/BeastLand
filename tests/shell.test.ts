@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { flag, matchCommand, parseArgs, tokenize, type Command } from "$lib/shell/protocol.js";
+import { flag, inUnterminatedQuote, matchCommand, parseArgs, tokenize, type Command } from "$lib/shell/protocol.js";
 import { applySuggestion, candidatesFor, fuzzyScore, splitInput } from "$lib/shell/completion.js";
 
 describe("tokenize / parseArgs", () => {
   it("honours double quotes", () => {
     expect(tokenize('customer set --name "John Doe" -f John')).toEqual(["customer", "set", "--name", "John Doe", "-f", "John"]);
+  });
+  it("honours single quotes that start a token", () => {
+    expect(tokenize("ask -w #id 'This is a long query'")).toEqual(["ask", "-w", "#id", "This is a long query"]);
+  });
+  it("leaves an apostrophe mid-word literal", () => {
+    expect(tokenize("don't split this")).toEqual(["don't", "split", "this"]);
+  });
+  it("folds an unterminated quote's trailing space into the last token", () => {
+    expect(tokenize('ask -w #id "This is a long ')).toEqual(["ask", "-w", "#id", "This is a long "]);
   });
   it("splits flags and positionals; boolean when no value follows", () => {
     const p = parseArgs(["new", "--optional", "-t", "Logo", "--price", "1600.50", "-o"]);
@@ -17,6 +26,25 @@ describe("tokenize / parseArgs", () => {
   });
   it("supports --key=value", () => {
     expect(parseArgs(["--width=4"]).flags).toEqual({ width: "4" });
+  });
+});
+
+describe("inUnterminatedQuote", () => {
+  it("is true while the caret sits inside an open double-quoted span", () => {
+    const line = 'ask -w #id "This is a long ';
+    expect(inUnterminatedQuote(line, line.length)).toBe(true);
+  });
+  it("is false once the quote is closed", () => {
+    const line = 'ask -w #id "This is a long query" ';
+    expect(inUnterminatedQuote(line, line.length)).toBe(false);
+  });
+  it("is false before the quote opens", () => {
+    const line = 'ask -w #id "long query"';
+    expect(inUnterminatedQuote(line, "ask -w #id".length)).toBe(false);
+  });
+  it("honours the same single-quote token-start rule as tokenize", () => {
+    expect(inUnterminatedQuote("ask 'foo", 8)).toBe(true);
+    expect(inUnterminatedQuote("don't", 5)).toBe(false);
   });
 });
 
@@ -73,5 +101,18 @@ describe("fuzzy completion", () => {
   it("applies a suggestion by replacing the partial token", () => {
     expect(applySuggestion("customer li", "list")).toBe("customer list ");
     expect(splitInput('a "b c" d')).toEqual({ tokens: ["a", "b c"], partial: "d" });
+  });
+
+  it("offers nothing while the caret is inside an unterminated quote, even across a space", () => {
+    const withFlags: Command[] = [
+      { name: "ask", description: "a", flags: [{ name: "width", short: "w", description: "w", takesValue: true }], run: () => {} },
+    ];
+    // The bug this guards: a trailing space inside an open quote used to be
+    // read as "token boundary", reopening the popup mid-sentence.
+    expect(splitInput('ask -w 4 "This is a long ')).toEqual({ tokens: ["ask", "-w", "4"], partial: "This is a long " });
+    expect(candidatesFor('ask -w 4 "This is a long ', withFlags)).toEqual([]);
+    expect(candidatesFor('ask -w 4 "This is a long query"', withFlags)).toEqual([]);
+    // Suggestions resume normally once the quote closes.
+    expect(candidatesFor('ask -w 4 "done" -', withFlags).length).toBeGreaterThan(0);
   });
 });

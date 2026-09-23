@@ -120,6 +120,7 @@ exports[`public API surface > matches the known set of exported names and their 
   "helpText: function",
   "historyStorageKey: function",
   "idSpans: function",
+  "inUnterminatedQuote: function",
   "isRunnableFence: function",
   "isRunnableFenceInfo: function",
   "isThemeId: function",

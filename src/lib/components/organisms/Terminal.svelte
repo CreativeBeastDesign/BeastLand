@@ -11,12 +11,14 @@
     type Span,
     type Suggestion,
     type TerminalBlock,
+    inUnterminatedQuote,
     knownFlags,
     matchCommand,
     previewFor,
     runCommand,
   } from "$lib/shell/commands.js";
   import { candidatesFor, applySuggestion, splitInput } from "$lib/shell/completion.js";
+  import { applyAutoPair, applyAutoPairBackspace } from "$lib/shell/autopair.js";
   import { registry } from "$lib/shell/registry.svelte.js";
   import { shell } from "$lib/shell/state.svelte.js";
   import { loadHistory, persistHistory, HISTORY_CAP } from "$lib/shell/history.js";
@@ -451,6 +453,37 @@
     // let them bubble untouched so they work while typing.
     if (event.altKey || event.ctrlKey) return;
 
+    // Auto-close quotes. IME composition (accents, CJK input) sends its own
+    // keys through `compositionend`, not a plain keypress — leave it alone.
+    if (!event.metaKey && !event.isComposing && (event.key === '"' || event.key === "'")) {
+      const el = event.currentTarget as HTMLTextAreaElement;
+      const result = applyAutoPair(input, el.selectionStart ?? input.length, el.selectionEnd ?? input.length, event.key);
+      if (result) {
+        event.preventDefault();
+        input = result.value;
+        const caret = result.caret;
+        tick().then(() => el.setSelectionRange(caret, caret));
+        return;
+      }
+    }
+
+    // Delete both sides of an empty auto-inserted pair (`""`/`''`) in one go.
+    if (!event.metaKey && !event.isComposing && event.key === "Backspace") {
+      const el = event.currentTarget as HTMLTextAreaElement;
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? 0;
+      if (start === end) {
+        const result = applyAutoPairBackspace(input, start);
+        if (result) {
+          event.preventDefault();
+          input = result.value;
+          const caret = result.caret;
+          tick().then(() => el.setSelectionRange(caret, caret));
+          return;
+        }
+      }
+    }
+
     if (popupOpen) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
@@ -600,7 +633,12 @@
   });
 
   $effect(() => {
-    // Publish what the partially typed line would do, per keystroke.
+    // Publish what the partially typed line would do, per keystroke — but
+    // not while the caret sits inside an unterminated quote: the line's
+    // intent was already settled before the quote opened, and re-deriving
+    // it on every space typed into free text would just churn the hint.
+    const caret = inputEl?.selectionStart ?? input.length;
+    if (inUnterminatedQuote(input, caret)) return;
     shell.setPreview(previewFor(input, activeCommands));
   });
 
@@ -616,7 +654,10 @@
 
   $effect(() => {
     // Recompute fuzzy completions per keystroke; typing resets the picker.
-    const list = candidatesFor(input, activeCommands);
+    // While the caret is inside an unterminated quote the token being typed
+    // is free text (e.g. `ask -w #id "…`) — no suggestions, no popup.
+    const caret = inputEl?.selectionStart ?? input.length;
+    const list = inUnterminatedQuote(input, caret) ? [] : candidatesFor(input, activeCommands);
     const { partial } = splitInput(input);
     suggestions = list.length === 1 && list[0].value === partial ? [] : list;
     suggestionIndex = 0;

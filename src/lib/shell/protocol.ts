@@ -224,29 +224,69 @@ export function flag(parsed: ParsedArgs, long: string, short?: string): string |
   return parsed.flags[long] ?? (short ? parsed.flags[short] : undefined);
 }
 
-/** Tokenise a raw input line on whitespace, honouring simple double-quoted spans. */
-export function tokenize(input: string): string[] {
+/**
+ * Shared quoting state machine behind `tokenize` and `inUnterminatedQuote`:
+ * `"` always opens/closes a span; `'` only opens one at a token boundary
+ * (start of input or right after whitespace) so apostrophes in prose
+ * (`don't`) stay literal — once open, either quote reads everything
+ * (including spaces) up to its matching close. Scans only the first `limit`
+ * characters of `input`, so the same code answers "what is `caret` inside".
+ */
+function scanQuoted(input: string, limit: number): { tokens: string[]; openQuote: '"' | "'" | null } {
   const tokens: string[] = [];
   let current = "";
-  let inQuotes = false;
+  let quote: '"' | "'" | null = null;
+  let atTokenStart = true;
 
-  for (const char of input) {
-    if (char === '"') {
-      inQuotes = !inQuotes;
+  for (let i = 0; i < limit; i++) {
+    const char = input[i];
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+        atTokenStart = false;
+      } else {
+        current += char;
+      }
       continue;
     }
-    if (char === " " && !inQuotes) {
+    if (char === '"' || (char === "'" && atTokenStart)) {
+      quote = char;
+      atTokenStart = false;
+      continue;
+    }
+    if (char === " ") {
       if (current) {
         tokens.push(current);
         current = "";
       }
+      atTokenStart = true;
       continue;
     }
     current += char;
+    atTokenStart = false;
   }
   if (current) tokens.push(current);
 
-  return tokens;
+  return { tokens, openQuote: quote };
+}
+
+/**
+ * Tokenise a raw input line on whitespace, honouring `"…"` quoting anywhere
+ * and `'…'` quoting when the opening `'` starts a token — see `scanQuoted`.
+ */
+export function tokenize(input: string): string[] {
+  return scanQuoted(input, input.length).tokens;
+}
+
+/**
+ * Whether `caret` (an index into `input`) sits inside a `"…"`/`'…'` span
+ * that hasn't been closed yet, per the exact rules `tokenize` uses. Drives
+ * quote-aware completion: no suggestions, no preview churn, while the user
+ * is still typing a quoted argument.
+ */
+export function inUnterminatedQuote(input: string, caret: number): boolean {
+  const limit = Math.max(0, Math.min(caret, input.length));
+  return scanQuoted(input, limit).openQuote !== null;
 }
 
 /** Flags known for `args` of a command: its own plus the matched subcommand's. */
