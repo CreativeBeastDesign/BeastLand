@@ -1,0 +1,172 @@
+/*
+ * Semantic tokens
+ *
+ * layer 2 of the token pipeline: primitive -> semantic -> component -> theme.
+ * These tokens derive from primitives (base.css) and are consumed by
+ * component tokens (components.css) and by components directly.
+ */
+
+:root {
+  /* Color - surfaces */
+  --color-surface-1: oklch(from var(--color-surface-0) calc(l + 0.04) c h);
+  --color-surface-2: oklch(from var(--color-surface-0) calc(l + 0.08) c h);
+  --color-overlay: oklch(from var(--color-surface-0) calc(l + 0.1) c h / 0.85);
+
+  /* Color - text */
+  --color-text-med: oklch(from var(--color-text-high) calc(l - 0.2) c h);
+  --color-text-disabled: oklch(
+    from var(--color-text-high) calc(l - 0.32) c h / 0.6
+  );
+
+  /* Color - accent derived */
+  --color-accent-soft: oklch(from var(--color-accent) l c h / 0.18);
+  --color-accent-strong: oklch(from var(--color-accent) calc(l - 0.08) calc(c - 0.02) h);
+  --color-on-accent: oklch(97% 0.01 250);
+
+  /* Color - secondary derived */
+  --color-secondary-soft: oklch(from var(--color-secondary) l c h / 0.18);
+  --color-secondary-strong: oklch(from var(--color-secondary) calc(l - 0.08) calc(c - 0.02) h);
+  --color-on-secondary: oklch(16% 0.02 200);
+
+  /* Color - status */
+  --color-success: oklch(70% 0.16 150);
+  --color-warning: oklch(78% 0.16 85);
+  --color-danger: oklch(66% 0.2 25);
+  --color-info: oklch(72% 0.12 235);
+
+  /* Color - borders */
+  --color-border-strong: oklch(from var(--color-text-high) l c h / 0.26);
+  --color-border-subtle: oklch(from var(--color-text-high) l c h / 0.06);
+
+  /* Color - focus/glow */
+  --color-focus: oklch(from var(--color-accent) l c h);
+
+  /* Gradients (Hyprland signature active-border treatment) */
+  --gradient-border-active: linear-gradient(
+    45deg,
+    var(--color-accent),
+    var(--color-secondary)
+  );
+  --gradient-brand: linear-gradient(
+    45deg,
+    var(--color-accent),
+    var(--color-secondary)
+  );
+
+  /* Popovers (menus, selects, tooltips) sit over text, so they are more
+     opaque and blur harder than panels. */
+  --color-popover: oklch(from var(--color-surface-1) l c h / 0.88);
+
+  /* Glass / effect */
+  --fx-blur-xs: 2px;
+  --fx-blur-sm: 6px;
+  --fx-blur-md: 16px;
+  --fx-blur-lg: 24px;
+
+  --fx-glass-alpha: 0.6;
+  --fx-glass-saturation: 1.35;
+  --fx-glass-contrast: 1.05;
+  --fx-glass-brightness: 1.05;
+
+  --fx-noise-opacity: 0.04;
+  --fx-highlight-opacity: 0.08;
+  --fx-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch' result='t'/%3E%3CfeColorMatrix in='t' type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23n)'/%3E%3C/svg%3E");
+
+  --fx-shadow-color: oklch(0% 0 0 / 0.5);
+  --fx-glow-opacity: 0.35;
+
+  /* Shape */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  --radius-window: 0.625rem;
+  --radius-control: 0.5rem;
+  --radius-popup: 0.625rem;
+  --radius-pill: 999rem;
+
+  --border-width: 1px;
+  --border-active-width: 2px;
+
+  /* Elevation / shadow / glow */
+  --shadow-xs: 0 1px 2px var(--fx-shadow-color);
+  --shadow-sm: 0 1px 3px var(--fx-shadow-color), 0 1px 2px var(--fx-shadow-color);
+  --shadow-md: 0 4px 12px var(--fx-shadow-color);
+  --shadow-lg: 0 8px 28px var(--fx-shadow-color);
+
+  --shadow-window: 0 10px 40px var(--fx-shadow-color);
+  --shadow-popup: 0 6px 20px var(--fx-shadow-color);
+  --shadow-modal: 0 16px 60px var(--fx-shadow-color);
+
+  --shadow-tile: 0 2px 8px oklch(0 0 0 / 0.25), 0 18px 44px oklch(0 0 0 / 0.35);
+  --shadow-tile-selected: 0 2px 8px oklch(0 0 0 / 0.3), 0 24px 56px oklch(0 0 0 / 0.45);
+
+  --glow-accent: 0 0 14px
+    oklch(from var(--color-accent) l c h / var(--fx-glow-opacity));
+  --glow-focus: 0 0 0 3px
+    oklch(from var(--color-accent) l c h / 0.3);
+  --glow-active: 0 0 22px
+    oklch(from var(--color-accent) l c h / var(--fx-glow-opacity));
+  --glow-secondary: 0 0 14px
+    oklch(from var(--color-secondary) l c h / var(--fx-glow-opacity));
+
+  /* Layout / spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+
+  --gap-tile: 0.75rem;
+  --gap-in: 0.375rem;
+  --gap-out: 0.875rem;
+  --gap-shell: 1.5rem;
+  --gap-section: 2rem;
+
+  --panel-height: 4rem;
+  --bar-height: 2.5rem;
+  --dock-item-size: 3rem;
+
+  /* Z-index / layers */
+  --layer-wallpaper: 0;
+  --layer-shell: 10;
+  --layer-panel: 20;
+  --layer-window: 30;
+  --layer-popover: 40;
+  --layer-notification: 50;
+  --layer-modal: 60;
+  --layer-tooltip: 70;
+
+  /* Motion */
+  --ease-hypr: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --duration-fast: 120ms;
+  --duration-normal: 220ms;
+  --duration-slow: 380ms;
+
+  --scale-window-in: 0.94;
+  --scale-window-out: 1.06;
+  --translate-window-in: 12px;
+
+  /* Typography */
+  --font-ui: "Lexend", system-ui, -apple-system, sans-serif;
+  --font-mono: "Illinois Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+
+  --font-feature-numeric: "tnum" 1;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+}
