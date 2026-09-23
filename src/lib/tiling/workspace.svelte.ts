@@ -199,8 +199,13 @@ function createWorkspace() {
     // Kind-specific size unless the caller asks for something explicit.
     const { x, y, w, h } = peekSpawn({ ...kinds.sizeOf(kind), ...opts });
     const layout = activeLayout();
+    // Lowest free `@n` (like tmux/i3): closing @3 frees it for the next tile,
+    // so ids stay near the open-tile count instead of growing forever.
+    const used = new Set(layout.containers.map((c) => c.id));
+    let id = 1;
+    while (used.has(id)) id++;
     const container: Container = {
-      id: layout.nextId,
+      id,
       kind,
       contentId,
       title: opts?.title,
@@ -209,7 +214,7 @@ function createWorkspace() {
       w,
       h,
     };
-    updateActive({ containers: [...layout.containers, container], selectedId: container.id, nextId: layout.nextId + 1 });
+    updateActive({ containers: [...layout.containers, container], selectedId: container.id, nextId: Math.max(layout.nextId, id + 1) });
     persist();
     return container;
   }

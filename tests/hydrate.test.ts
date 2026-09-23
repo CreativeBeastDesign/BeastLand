@@ -62,8 +62,9 @@ describe("load-then-hydrate", () => {
     // "gone" is pruned; the unregistered kind is kept (its slice may mount later).
     expect(workspace.containers.map((c) => c.id)).toEqual([1, 3]);
     expect(workspace.selectedId).toBeNull();
-    // ids keep counting after the highest persisted one
-    expect(workspace.spawn("box", "keep2").id).toBe(4);
+    // new tiles take the lowest free id (@2 was pruned), then continue past @3
+    expect(workspace.spawn("box", "keep2").id).toBe(2);
+    expect(workspace.spawn("box", "keep3").id).toBe(4);
     off();
   });
 });

@@ -27,6 +27,18 @@ export type KindSpec = {
   label: (contentId: string) => string;
   /** Whether the record still exists — persisted containers are pruned otherwise. */
   exists: (contentId: string) => boolean;
+  /**
+   * Whether this kind's backing store has finished loading. Omit it when the
+   * store is always ready (the common case). While it returns `false`,
+   * `exists` behaves as if the kind weren't registered at all — `true` for
+   * every id — so `workspace.prune()` (including the pass BeastLand re-runs
+   * after a late `hydrate()`) never drops a container just because its
+   * record hasn't loaded yet. Resolution (`kinds.resolve`, `ids()`) is
+   * unaffected: it stays whatever `ids()` reports regardless of `ready`.
+   * Safe to read reactive state (e.g. a `$state` flag) inside it — it is
+   * called from derived/effect contexts.
+   */
+  ready?: () => boolean;
   /** Renders the tile body for a record. */
   component: Component<{ contentId: string }>;
   /**
@@ -145,9 +157,15 @@ function createKinds() {
       return null;
     },
 
-    /** Unknown kinds are kept (their slice may not be mounted yet). */
+    /**
+     * Unknown kinds are kept (their slice may not be mounted yet); a
+     * registered kind that reports `ready() === false` is kept the same way.
+     */
     exists(kind: string, contentId: string): boolean {
-      return specs[kind]?.exists(contentId) ?? true;
+      const spec = specs[kind];
+      if (!spec) return true;
+      if (spec.ready && !spec.ready()) return true;
+      return spec.exists(contentId);
     },
 
     /** Register a kind; call the returned function to remove it again. */

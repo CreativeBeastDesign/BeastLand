@@ -158,6 +158,51 @@ describe("prune across layouts", () => {
   });
 });
 
+describe("prune with a not-yet-ready kind", () => {
+  // A plain closure variable is enough here: `ready` is just called and read
+  // synchronously by `kinds.exists`/`prune`, no reactive tracking required.
+  // (This file is plain `.ts`, not `.svelte.ts`, so runes aren't compiled.)
+  let loaded = false;
+  let off: (() => void) | undefined;
+
+  beforeEach(() => {
+    loaded = false;
+    off = kinds.register({
+      kind: "lazy",
+      size: { w: 1, h: 1 },
+      label: (id) => id,
+      exists: (id) => id === "keep",
+      ready: () => loaded,
+      component: (() => {}) as never,
+    });
+  });
+  afterEach(() => off?.());
+
+  it("keeps every container of the kind while ready() is false, as if unregistered", () => {
+    workspace.spawn("lazy", "keep");
+    workspace.spawn("lazy", "stale");
+
+    expect(workspace.prune()).toBe(0);
+    expect(workspace.containers.map((c) => c.contentId).sort()).toEqual(["keep", "stale"]);
+  });
+
+  it("prunes normally once ready() flips to true", () => {
+    workspace.spawn("lazy", "keep");
+    workspace.spawn("lazy", "stale");
+
+    loaded = true;
+    expect(workspace.prune()).toBe(1);
+    expect(workspace.containers.map((c) => c.contentId)).toEqual(["keep"]);
+  });
+
+  it("exists() reports true for any id while not ready, false once ready", () => {
+    expect(kinds.exists("lazy", "anything")).toBe(true);
+    loaded = true;
+    expect(kinds.exists("lazy", "anything")).toBe(false);
+    expect(kinds.exists("lazy", "keep")).toBe(true);
+  });
+});
+
 describe("persistence shape + migration", () => {
   it("persists { layouts, activeId } under beastland:workspaces", () => {
     workspace.spawn("box", "a");

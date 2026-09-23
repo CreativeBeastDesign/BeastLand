@@ -12,7 +12,9 @@
  * `WorkspaceLayout`s and one `activeId`. Every existing container operation
  * (`spawn`, `move`, `select`…) is a facade over the *active* layout, so a
  * consumer that only ever knew one workspace keeps working unchanged.
- * Container ids (`@n`) are per layout — each layout has its own `nextId`.
+ * Container ids (`@n`) are per layout; a new container takes the lowest
+ * free id, so ids are reused after a close (`nextId` is kept for persisted
+ * layouts but no longer decides the next id).
  */
 
 import type { Customer, Document } from "$lib/data/types.js";

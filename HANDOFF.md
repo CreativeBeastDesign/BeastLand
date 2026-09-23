@@ -75,6 +75,14 @@ the route component, inside a `<svelte:boundary>` with a `pending` snippet —
 `exists` return `true` and `label` return a placeholder while a record is
 still unknown, and let `workspace.prune()` run after your load resolves.
 
+If you'd rather not wrap `exists` yourself, give the kind a `ready: () =>
+boolean` instead (reading a `$state` flag is fine — it's called from
+reactive contexts). While `ready()` is `false`, `kinds.exists` treats the
+kind as if it weren't registered at all, i.e. `true` for every id, so
+`prune()` (including the pass re-run after a late `hydrate()`) can't drop a
+container just because the store hasn't loaded yet; `label`/`ids`/resolution
+are unaffected. Flip `ready` once your slice's `load()` resolves.
+
 Id format: full ids are strings; `bareId()` strips everything up to the first
 `:` and then a short type tag (2–5 lowercase letters + `_`: `doc_`, `inv_`,
 `prj_`, `conv_`) before computing short ids, so `invoice:inv_4c1d…` reads
@@ -98,17 +106,62 @@ SvelteKit is what the demo uses but nothing in `src/lib` imports `$app/*`.
 Set `compilerOptions.experimental.async = true` only if you use `await` in
 components (the storage load pattern does).
 
-The package is not published: consume it as a path dependency
-(`"beastland": "../BeastLand"`, symlinked) and rebuild `dist/` with
-`npm run prepack` in this repo after every library change. Symlinked
-consumers need two Vite settings, or Svelte gets bundled twice and the
-fonts 403:
+The package is not published to npm. Two ways to consume it, depending on
+whether you're developing both repos side by side or just consuming a
+release:
+
+**Local dev (path/link dependency).** Symlinked consumers need two Vite
+settings, or Svelte gets bundled twice and the fonts 403:
 
 ```ts
 // vite.config.ts of the app
 resolve: { dedupe: ["svelte"] },
 server: { fs: { allow: ["../BeastLand"] } },
 ```
+
+Either a plain path dependency (`"beastland": "../BeastLand"`) or `bun
+link` works; either way, rebuild `dist/` after every library change with
+`npm run prepack` (or `npm run build`, or `npm run package:watch` for a
+watch mode) in this repo. With `bun link`:
+
+```sh
+cd ../BeastLand && bun link            # registers this repo as linkable
+cd ../Dachsboard && bun link beastland --no-save
+```
+
+`bun link <pkg>` rewrites the consumer's `package.json` dependency line to
+point at the linked package by default (`--save` is on by default, per
+`bun link --help`) — pass `--no-save` so Dachsboard's committed dependency
+spec (the `github:` ref below) doesn't get clobbered by a local dev
+convenience. `vite.config.ts`'s `server.fs.allow: ["../BeastLand"]` and
+`resolve.dedupe` are still needed with `bun link` (it's still a symlink
+under the hood) — keep them regardless of which consumption mode is active.
+
+**From a release tag (what Dachsboard's `package.json` actually pins).**
+BeastLand's `dist/` is gitignored on every normal branch, so a plain
+`github:CreativeBeastDesign/BeastLand#<ref>` dependency would try to build
+the package from source on install — and Pokkum builds Dachsboard's image
+from the Dachsboard folder alone, so it can't fall back to a sibling
+checkout the way local dev does. Instead:
+
+- **Releasing**: bump the version and tag it — `npm version <major|minor|patch>`
+  then `git push --follow-tags`. Pushing a `v*` tag triggers
+  `.github/workflows/release.yml`, which builds the package and pushes a
+  sibling tag, `<tag>-dist` (e.g. `v0.2.0` → `v0.2.0-dist`), whose commit
+  is the tagged commit plus a built `dist/` — not on `main`, never merged
+  back.
+- **Consuming**: point at that `-dist` tag —
+  `"beastland": "github:CreativeBeastDesign/BeastLand#v0.2.0-dist"`. Because
+  `dist/` is already committed on that tag, installing it does not run the
+  library's own build — see the `prepare` note below.
+
+`prepare` runs `svelte-kit sync` only when `dist/` is absent (`test -d dist
+|| (svelte-kit sync || echo '')`) so that installing from a `-dist` tag —
+which some package managers run lifecycle scripts for even on a git
+dependency — doesn't try to invoke a dev toolchain (`@sveltejs/kit`, …)
+that a production/git install may not have. `prepack` (the full
+`svelte-package && publint` build) is only ever invoked explicitly by
+`npm run build`/`release.yml`, never as an install-time lifecycle script.
 
 Assets: the library ships fonts (`beastland/assets/*`) and theme CSS, but
 **no wallpapers**. The demo's five live in this repo's `static/wallpapers`
@@ -275,6 +328,7 @@ What each hook buys you, without writing a command:
 |---|---|
 | `ids` | `#in` resolves, `#` completion lists your records, short ids stay unique across kinds |
 | `label`, `exists` | tile title, `ls`, pruning of stale containers |
+| `ready` | (optional) while it returns `false`, `exists` answers `true` for every id, so `prune()` can't drop containers before your store has loaded |
 | `size`, `component` | `#id` spawns a tile of that size rendering your component |
 | `view` | `#id -d`, `#id -f` print the record; without it only the label prints |
 | `setFlags` + `set` | `@n set --…`, `#id set --…`, narrowed completion and unknown-flag warnings; the generic `runSet` prints `updated #id: k=v` |
