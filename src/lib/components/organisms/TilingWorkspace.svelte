@@ -161,7 +161,7 @@
           {container}
           selected={workspace.selectedId === container.id}
           label={spec?.label(container.contentId)}
-          allIds={kinds.allIds}
+          short={kinds.shortIdOf(container.contentId)}
           onselect={(id) => workspace.select(id)}
           preview={isPreviewTarget}
           hint={isPreviewTarget ? shell.preview?.hint : undefined}

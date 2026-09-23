@@ -31,6 +31,7 @@
     <button
       class="ws-switcher__item"
       class:ws-switcher__item--active={ws.id === activeId}
+      type="button"
       role="tab"
       aria-selected={ws.id === activeId}
       onclick={() => onchange?.(ws.id)}

@@ -131,6 +131,13 @@ function rehydrate(keys: Iterable<string>) {
 let ready: Promise<void> = Promise.resolve();
 let generation = 0;
 
+/**
+ * Writes made while a `load()` is in flight. They are newer than the
+ * snapshot being fetched, so they are replayed onto the new cache (and the
+ * backend) instead of being clobbered by it.
+ */
+let inFlightWrites: Map<string, string | null> | null = null;
+
 /** The adapter all stores use. `use()`/`load()` replace it and re-hydrate the registered stores. */
 export const storage = {
   /** Switch to a sync adapter and re-hydrate every registered store from it. */
@@ -151,15 +158,26 @@ export const storage = {
   load(adapter: AsyncStorageAdapter, options: LoadOptions = {}): Promise<void> {
     const gen = ++generation;
     const keys = options.keys ?? [...hydrators.keys()];
+    const writes = (inFlightWrites = new Map<string, string | null>());
     const run = async () => {
       const entries = await Promise.all(keys.map(async (key) => [key, await adapter.load(key)] as const));
       if (gen !== generation) return;
       const cache = memoryStorage();
       for (const [key, value] of entries) if (value !== null) cache.set(key, value);
-      current = writeThrough(cache, adapter, options.onError ?? warn);
+      const onError = options.onError ?? warn;
+      const backend = writeThrough(cache, adapter, onError);
+      // Anything written during the load happened *after* this snapshot was
+      // requested, so it wins — and reaches the backend, which never saw it.
+      for (const [key, value] of writes) {
+        if (value === null) backend.remove(key);
+        else backend.set(key, value);
+      }
+      current = backend;
       rehydrate(keys);
     };
-    ready = run();
+    ready = run().finally(() => {
+      if (inFlightWrites === writes) inFlightWrites = null;
+    });
     return ready;
   },
 
@@ -193,9 +211,11 @@ export const storage = {
   },
   set(key: string, value: string) {
     current.set(key, value);
+    inFlightWrites?.set(key, value);
   },
   remove(key: string) {
     current.remove(key);
+    inFlightWrites?.set(key, null);
   },
   /** Parse a JSON value, or null when missing/invalid. */
   getJson<T>(key: string): T | null {

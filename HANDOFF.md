@@ -196,6 +196,15 @@ invoices.remove(id): boolean
 
 Strategy B stores add `hydrate()` + `storage.register(KEY, hydrate)` and call
 `storage.setJson(KEY, …)` after each mutation (`src/lib/data/store.svelte.ts`).
+Note what that demo pattern costs at scale: one JSON blob per *kind*,
+re-serialised in full on every edit. Past a few thousand records use strategy
+A, or key per record (`app:invoice:<id>`) and register each key — `storage`
+does not care how many keys you use.
+
+One ordering rule: a write made while `storage.load()` is still fetching is
+kept (it is newer than the snapshot) and is forwarded to the backend. What is
+*not* handled is two clients writing the same key — last write wins, with no
+merge.
 Strategy A stores call your API; keep the mutation methods synchronous from
 the caller's point of view (update `$state`, fire the request, reconcile on
 response) because every command `run` and every `KindSpec.set` is

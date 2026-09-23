@@ -9,8 +9,7 @@
   import { entryMinutes, formatDuration, dayKey, timeOfDay, type WorkEntry } from "$lib/worklog/types.js";
   import { formatDate, itemLabels } from "$lib/data/format.js";
   import { data } from "$lib/data/store.svelte.js";
-  import { shortId } from "$lib/tiling/ids.js";
-  import { shell } from "$lib/shell/state.svelte.js";
+    import { shell } from "$lib/shell/state.svelte.js";
   import ShortId from "$lib/components/atoms/ShortId.svelte";
 
   let { contentId: _contentId }: { contentId: string } = $props();
@@ -43,7 +42,7 @@
 
   function activateDoc(event: MouseEvent, documentId: string) {
     event.stopPropagation(); // don't also select the tile
-    const command = `#${shortId(documentId, kinds.allIds).short}`;
+    const command = `#${kinds.shortIdOf(documentId).short}`;
     if (event.shiftKey) {
       shell.insert(command);
       return;

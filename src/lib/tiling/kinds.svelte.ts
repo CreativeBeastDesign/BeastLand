@@ -15,7 +15,7 @@
 import { untrack, type Component } from "svelte";
 import type { CommandContext, FlagSpec, ParsedArgs } from "$lib/shell/protocol.js";
 import { DEFAULT_SIZE } from "./types.js";
-import { resolveId } from "./ids.js";
+import { bareId, shortId, shortIdIndex, type ShortId } from "./ids.js";
 import type { ViewFn } from "./views.js";
 
 export type KindSpec = {
@@ -83,6 +83,16 @@ export type Resolved = { kind: string; id: string } | { ambiguous: string[] } | 
 function createKinds() {
   let specs = $state<Record<string, KindSpec>>({});
 
+  // Every registered record, once per change: its kind, its bare id (for
+  // `#id` resolution) and its short id. Rebuilt only when a kind's id array
+  // changes, instead of rescanning every id per row and per keystroke.
+  const records = $derived.by(() => {
+    const entries = Object.values(specs).flatMap((spec) =>
+      (spec.ids?.() ?? []).map((id) => ({ id, kind: spec.kind, bare: bareId(id) })),
+    );
+    return { entries, shorts: shortIdIndex(entries.map((e) => e.id)) };
+  });
+
   return {
     get all(): KindSpec[] {
       return Object.values(specs);
@@ -101,18 +111,38 @@ function createKinds() {
     },
 
     /** Every `#`-addressable id across all registered kinds. */
+    /** Short ids of every registered record, by full id. */
+    get shortIds(): ReadonlyMap<string, ShortId> {
+      return records.shorts;
+    },
+
+    /** The short id of one record — from the cached index, or computed for an unknown id. */
+    shortIdOf(id: string): ShortId {
+      return records.shorts.get(id) ?? shortId(id, this.allIds);
+    },
+
     get allIds(): string[] {
       return Object.values(specs).flatMap((s) => s.ids?.() ?? []);
     },
 
     /** Resolve `#xp`-style input to a record of whichever kind owns it. */
+    /**
+     * Resolve `#xp` (or a full id) to one record. Runs against the cached
+     * entries — `resolveId`'s own scan recomputes `bareId` for every id, and
+     * this runs on every keystroke (completion and previews).
+     */
     resolve(input: string): Resolved {
-      const all = Object.values(specs).flatMap((s) => (s.ids?.() ?? []).map((id) => ({ kind: s.kind, id })));
-      const r = resolveId(input, all.map((x) => x.id));
-      if (!r) return null;
-      if ("ambiguous" in r) return r;
-      const hit = all.find((x) => x.id === r.id);
-      return hit ? { kind: hit.kind, id: hit.id } : null;
+      const needle = bareId(input.replace(/^#/, ""));
+      if (!needle) return null;
+      const { entries } = records;
+
+      const exact = entries.find((e) => e.id === input || e.bare === needle);
+      if (exact) return { kind: exact.kind, id: exact.id };
+
+      const matches = entries.filter((e) => e.bare.startsWith(needle));
+      if (matches.length === 1) return { kind: matches[0].kind, id: matches[0].id };
+      if (matches.length > 1) return { ambiguous: matches.map((m) => m.id) };
+      return null;
     },
 
     /** Unknown kinds are kept (their slice may not be mounted yet). */

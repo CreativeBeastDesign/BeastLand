@@ -15,7 +15,6 @@
 import { kinds } from "$lib/tiling/kinds.svelte.js";
 import { data } from "$lib/data/store.svelte.js";
 import { workspace } from "$lib/tiling/workspace.svelte.js";
-import { shortId } from "$lib/tiling/ids.js";
 import { itemLabels, resolveItemRef, formatDate } from "$lib/data/format.js";
 import {
   flag,
@@ -38,12 +37,12 @@ import { WORKLOG_CONTENT_ID } from "./kind.js";
 
 /** `#` + the shortest unique prefix of a full record id (plain text, for messages). */
 function sid(id: string): string {
-  return `#${shortId(id, kinds.allIds).short}`;
+  return `#${kinds.shortIdOf(id).short}`;
 }
 
 /** `#fa` bold + dimmed tail, as spans for styled output. Clicking runs `#fa`. */
 function idSpans(id: string): Span[] {
-  const parts = shortId(id, kinds.allIds);
+  const parts = kinds.shortIdOf(id);
   return [
     { text: `#${parts.short}`, tone: "id", command: `#${parts.short}` },
     { text: parts.rest, tone: "id-rest" },
@@ -51,7 +50,7 @@ function idSpans(id: string): Span[] {
 }
 
 function printAmbiguous(ids: string[], ctx: CommandContext) {
-  const labels = ids.map((id) => `#${shortId(id, kinds.allIds).short}…`);
+  const labels = ids.map((id) => `#${kinds.shortIdOf(id).short}…`);
   ctx.print(`ambiguous: ${labels.join(" ")}`, "error");
 }
 

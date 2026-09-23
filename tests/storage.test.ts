@@ -134,3 +134,41 @@ describe("load (async adapter)", () => {
     off();
   });
 });
+
+describe("writes during a load", () => {
+  it("keeps a write made while the snapshot is still in flight", async () => {
+    let settle!: (value: string | null) => void;
+    const saved: [string, string][] = [];
+    const backend: AsyncStorageAdapter = {
+      load: () => new Promise((resolve) => (settle = resolve)),
+      save: async (key, value) => void saved.push([key, value]),
+      remove: async () => {},
+    };
+    const off = storage.register("k:a", () => {});
+
+    const loading = storage.load(backend, { keys: ["k:a"] });
+    storage.set("k:a", "typed-while-loading"); // e.g. a command ran during startup
+    settle("from-backend");
+    await loading;
+
+    expect(storage.get("k:a")).toBe("typed-while-loading");
+    expect(saved).toContainEqual(["k:a", "typed-while-loading"]);
+    off();
+  });
+
+  it("a remove during the load also wins", async () => {
+    let settle!: (value: string | null) => void;
+    const removed: string[] = [];
+    const backend: AsyncStorageAdapter = {
+      load: () => new Promise((resolve) => (settle = resolve)),
+      save: async () => {},
+      remove: async (key) => void removed.push(key),
+    };
+    const loading = storage.load(backend, { keys: ["k:b"] });
+    storage.remove("k:b");
+    settle("stale-value");
+    await loading;
+    expect(storage.get("k:b")).toBeNull();
+    expect(removed).toEqual(["k:b"]);
+  });
+});

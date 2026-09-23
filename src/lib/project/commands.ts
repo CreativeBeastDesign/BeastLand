@@ -18,7 +18,6 @@
 import { data } from "$lib/data/store.svelte.js";
 import { kinds } from "$lib/tiling/kinds.svelte.js";
 import { workspace } from "$lib/tiling/workspace.svelte.js";
-import { shortId } from "$lib/tiling/ids.js";
 import type { Container } from "$lib/tiling/types.js";
 import { customerName, formatMoney } from "$lib/data/format.js";
 import { docTypeLabels } from "$lib/data/types.js";
@@ -48,12 +47,12 @@ import { formatDuration } from "$lib/worklog/types.js";
 
 /** `#` + the shortest unique prefix of a full record id (plain text, for messages). */
 function sid(id: string): string {
-  return `#${shortId(id, kinds.allIds).short}`;
+  return `#${kinds.shortIdOf(id).short}`;
 }
 
 /** `#pr` bold + dimmed tail, as spans for styled output. Clicking runs `#pr`. */
 function idSpans(id: string): Span[] {
-  const parts = shortId(id, kinds.allIds);
+  const parts = kinds.shortIdOf(id);
   return [
     { text: `#${parts.short}`, tone: "id", command: `#${parts.short}` },
     { text: parts.rest, tone: "id-rest" },
@@ -66,7 +65,7 @@ function say(ctx: CommandContext, before: string, id: string, after = "") {
 }
 
 function printAmbiguous(ids: string[], ctx: CommandContext) {
-  const labels = ids.map((id) => `#${shortId(id, kinds.allIds).short}…`);
+  const labels = ids.map((id) => `#${kinds.shortIdOf(id).short}…`);
   ctx.print(`ambiguous: ${labels.join(" ")}`, "error");
 }
 
@@ -203,7 +202,7 @@ const detailFlags: FlagSpec[] = [
 
 function projectSuggestions(): Suggestion[] {
   return projects.projects.map((p) => ({
-    value: `#${shortId(p.id, kinds.allIds).short}`,
+    value: `#${kinds.shortIdOf(p.id).short}`,
     label: p.name || "(unnamed)",
     kind: "value",
   }));
@@ -211,7 +210,7 @@ function projectSuggestions(): Suggestion[] {
 
 function customerSuggestions(): Suggestion[] {
   return data.customers.map((c) => ({
-    value: `#${shortId(c.id, kinds.allIds).short}`,
+    value: `#${kinds.shortIdOf(c.id).short}`,
     label: customerName(c) || "(no name)",
     description: c.company,
     kind: "value",
@@ -220,7 +219,7 @@ function customerSuggestions(): Suggestion[] {
 
 function documentSuggestions(): Suggestion[] {
   return data.documents.map((d) => ({
-    value: `#${shortId(d.id, kinds.allIds).short}`,
+    value: `#${kinds.shortIdOf(d.id).short}`,
     label: d.title || d.number || docTypeLabels[d.docType],
     description: docTypeLabels[d.docType],
     kind: "value",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bareId, resolveId, shortId } from "$lib/tiling/ids.js";
+import { bareId, resolveId, shortId, shortIdIndex } from "$lib/tiling/ids.js";
 import { documentTotals, formatMoney, itemLabels, resolveItemRef, splitName } from "$lib/data/format.js";
 import { seedDocuments } from "$lib/data/seed.js";
 
@@ -48,5 +48,52 @@ describe("format", () => {
     expect(t.net).toBe(820000);
     expect(t.discount).toBe(410000);
     expect(t.gross).toBe(443210);
+  });
+});
+
+describe("shortIdIndex", () => {
+  it("agrees with shortId for every id in a mixed set", () => {
+    const ids = [
+      "customer:xpoakahew4rsp2stfg0y",
+      "customer:xq7lm2ndk9vbf3wh1t8e",
+      "document:doc_fab90cb3-c39b",
+      "invoice:inv_fab90cb3-0000",
+      "project:prj_9f",
+      "project:prj_9fa",
+      "note:ab_",
+      "short:x",
+    ];
+    const index = shortIdIndex(ids);
+    for (const id of ids) expect(index.get(id)).toEqual(shortId(id, ids));
+  });
+
+  it("agrees with shortId on random sets (incl. shared prefixes)", () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 120; i++) {
+      // Deliberate prefix collisions: a small alphabet and a shared stem.
+      const stem = ["aa", "ab", "abc", "b"][i % 4];
+      ids.push(`rec:r_${stem}${i.toString(3)}`);
+    }
+    const index = shortIdIndex(ids);
+    for (const id of ids) expect(index.get(id), id).toEqual(shortId(id, ids));
+  });
+
+  it("keeps duplicate bare ids colliding, as uniquePrefixLength does", () => {
+    const ids = ["invoice:inv_abc", "project:prj_abc"]; // both bare `abc`
+    const index = shortIdIndex(ids);
+    expect(index.get(ids[0])?.short).toBe(shortId(ids[0], ids).short);
+    expect(index.get(ids[0])?.short).toBe(index.get(ids[1])?.short);
+    expect(resolveId("#ab", ids)).toEqual({ ambiguous: ids });
+  });
+
+  it("is dramatically cheaper than one scan per row", () => {
+    const ids = Array.from({ length: 1500 }, (_, i) => `invoice:inv_${i.toString(36)}${"x".repeat(i % 5)}`);
+    const t0 = performance.now();
+    shortIdIndex(ids);
+    const indexed = performance.now() - t0;
+    const t1 = performance.now();
+    for (const id of ids.slice(0, 150)) shortId(id, ids); // a tenth of the rows, the old way
+    const scanned = performance.now() - t1;
+    expect(indexed).toBeLessThan(scanned);
   });
 });

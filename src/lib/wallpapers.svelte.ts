@@ -25,6 +25,11 @@ export type Wallpaper = {
   id: WallpaperId;
   label: string;
   src: string;
+  /**
+   * Small preview (~240px) for pickers. Without it they fall back to `src`,
+   * which means a settings tile downloads every full-size wallpaper.
+   */
+  thumb?: string;
   /** Short description used by the showcase and the terminal `wallpaper` command. */
   description?: string;
 };

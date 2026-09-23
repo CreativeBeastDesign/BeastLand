@@ -217,6 +217,9 @@ Things that will hurt during extraction, in order:
   sections, sequencing, what not to build).
 - **`HANDOFF.md`** is the integration guide for an app bringing its own
   data; keep it in step with `KindSpec` and the storage seam.
+- **Per-record storage keys.** The demo persists one blob per kind; a real
+  dataset wants a key per record (or strategy A). `storage` supports it
+  today — nobody has needed it yet.
 - **Storage: per-request state on the server.** Stores are module
   singletons, so with SSR every request shares them; `storage.load` on the
   server currently loads memory. A real app should either render the
@@ -414,6 +417,36 @@ Things that will hurt during extraction, in order:
   exported; `beastland/styles` has a `types` condition. Documented in
   HANDOFF: path-dependency Vite settings, wallpapers are app assets,
   settings registration, SurrealDB `⟨key⟩` escaping.
+- **Short ids are indexed, not rescanned.** `shortId(id, all)` rescans every
+  other id, so a listing cost one O(n) scan per row — 2000 records ≈ 270ms
+  per `customer list`, and completion repeated it on every keystroke.
+  `shortIdIndex(all)` sorts once and reads each id's longest shared prefix
+  off its neighbours (O(n log n)); `kinds.shortIds` / `kinds.shortIdOf(id)`
+  memoise it through `$derived`, so it recomputes only when records change.
+  Measured 20× at 500 records, 126× at 2000. Equal bare ids still collide
+  (and resolve as ambiguous), matching the old behaviour.
+- **Bounded transcript.** `<Terminal maxBlocks>` (200) drops the oldest
+  blocks; before, a long-lived session grew without bound, and `ctx.blocks`
+  with it.
+- **Writes during `storage.load` are no longer lost.** A `set`/`remove` made
+  while the snapshot is in flight used to be overwritten by the arriving
+  backend state; those writes are now replayed onto the new cache and
+  forwarded to the backend. Concurrent *clients* are still last-write-wins.
+- **Terminal history lives in `shell/history.ts`** (`loadHistory`,
+  `persistHistory`, `clearHistory`, `HISTORY_CAP`) so the key format has one
+  owner; `ws rm` clears the retired workspace's history instead of leaking
+  the key.
+- **Small fixes from the audit:** `WorkspaceSwitcher`'s buttons were missing
+  `type="button"` (would submit a surrounding form); `Tooltip` left a pending
+  show timer running after unmount; `Wallpaper.thumb` lets pickers avoid
+  downloading full-size images.
+- **Checked and fine:** the package already declares `sideEffects: ["**/*.css"]`
+  and a consumer importing only `Terminal` does *not* pull the demo CRM
+  (verified by bundling `dist/index.js` with esbuild: no seed data, no demo
+  stores, no 30s clock interval). Every other timer/observer is cleaned up
+  (`StatusBar`, `Select`, `Tooltip`, the prompt's `ResizeObserver`, the
+  Terminal's abort controllers); the only uncleared one is the worklog
+  `clock` interval, a module singleton that starts on first read.
 - **Prompt grows, then scrolls.** The input is a one-row `<textarea>` whose
   height is written from `scrollHeight` (`autoGrow`), capped by
   `maxInputLines` (6) — past that it scrolls internally and the syntax

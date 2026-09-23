@@ -19,7 +19,7 @@
   import { candidatesFor, applySuggestion, splitInput } from "$lib/shell/completion.js";
   import { registry } from "$lib/shell/registry.svelte.js";
   import { shell } from "$lib/shell/state.svelte.js";
-  import { storage } from "$lib/shell/storage.js";
+  import { loadHistory, persistHistory, HISTORY_CAP } from "$lib/shell/history.js";
   import { overflowFade } from "$lib/actions/overflowFade.js";
 
   type Props = {
@@ -66,6 +66,12 @@
      * many it keeps the caret in view and scrolls internally.
      */
     maxInputLines?: number;
+    /**
+     * How many blocks the transcript keeps. Oldest are dropped past this —
+     * a shell that runs for days would otherwise grow without bound (and
+     * `ctx.blocks` with it). Set 0 for no cap.
+     */
+    maxBlocks?: number;
   };
 
   let {
@@ -81,6 +87,7 @@
     historyKey,
     header,
     maxInputLines = 6,
+    maxBlocks = 200,
   }: Props = $props();
 
   // Explicit `commands` prop wins; otherwise follow the shared registry so
@@ -138,32 +145,6 @@
   let history = $state<string[]>([]);
   let historyIndex = $state(0);
   let selectedBlockId = $state<number | null>(null);
-
-  const HISTORY_CAP = 200;
-
-  function historyStorageKey(key: string): string {
-    return `beastland:history:${key}`;
-  }
-
-  /** Read persisted history for `key`, or `[]` when unset/absent/malformed. */
-  function loadHistory(key: string | undefined): string[] {
-    if (!key) return [];
-    try {
-      const stored = storage.getJson<string[]>(historyStorageKey(key));
-      return Array.isArray(stored) ? stored.slice(-HISTORY_CAP) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  function persistHistory(key: string | undefined, value: string[]) {
-    if (!key) return;
-    try {
-      storage.setJson(historyStorageKey(key), value.slice(-HISTORY_CAP));
-    } catch {
-      /* storage may be unavailable; the in-memory history still works */
-    }
-  }
 
   // Reload history whenever `historyKey` changes (including its first set).
   // Without the prop this never fires past the initial no-op, so history
@@ -236,6 +217,11 @@
       startedAt: Date.now(),
     };
     blocks.push(block);
+    if (maxBlocks > 0 && blocks.length > maxBlocks) {
+      const dropped = blocks.splice(0, blocks.length - maxBlocks);
+      // A walked-to block that just fell off the end must not stay selected.
+      if (dropped.some((b) => b.id === selectedBlockId)) selectedBlockId = null;
+    }
     // Read back through the reactive array: Svelte wraps pushed objects in
     // its own proxy, and only that proxy's mutations are tracked — mutating
     // the local `block` reference later would not update the UI.

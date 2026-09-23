@@ -1,17 +1,15 @@
 /**
  * Ref detection and runnable-fence languages for the `Markdown` component.
  *
- * Mirrors the same grammar `$lib/shell/prose.ts` uses for prose lines inside
- * the Terminal (`@12`, `#xp` refs; `beast`/`sh` fences whose lines are
- * commands), so a ref or a runnable line looks and behaves the same whether
- * it came from a streamed prose line or a `Markdown` document. `prose.ts`
- * does not export its regex or fence-language set, so both are duplicated
- * here verbatim — keep them in sync if that grammar ever changes.
+ * The grammar itself lives in `$lib/shell/prose.ts` (`REF_SOURCE`,
+ * `RUNNABLE_FENCE_LANGS`) and is imported here, so a ref or a runnable line
+ * behaves the same whether it came from a streamed prose line in the
+ * Terminal or from a `Markdown` document — there is one definition to change.
  */
 
-/** A ref match (`@12`, `#xp`), word-boundaried so it doesn't fire inside an
- * identifier or an email (`a@b`) and requires at least 2 chars after `#`. */
-const REF_RE = /(?<!\w)(@\d+|#[a-z0-9]{2,})\b/g;
+import { REF_SOURCE, RUNNABLE_FENCE_LANGS, refMatcher } from "$lib/shell/prose.js";
+
+const REF_RE = refMatcher();
 
 export type TextPart = { text: string };
 export type RefPart = { ref: string };
@@ -34,9 +32,6 @@ export function splitRefs(text: string): Array<TextPart | RefPart> {
   if (last < text.length) parts.push({ text: text.slice(last) });
   return parts;
 }
-
-/** Fenced-block info strings whose lines are runnable commands. */
-const RUNNABLE_FENCE_LANGS = new Set(["beast", "sh"]);
 
 /**
  * Whether a fence's language (marked's `Tokens.Code.lang`, already narrowed

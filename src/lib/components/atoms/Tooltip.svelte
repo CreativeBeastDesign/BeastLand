@@ -1,7 +1,7 @@
 <!-- src/lib/components/atoms/Tooltip.svelte -->
 
 <script lang="ts">
-  import type { Snippet } from "svelte";
+  import { onDestroy, type Snippet } from "svelte";
 
   type Placement = "top" | "bottom" | "left" | "right";
 
@@ -42,6 +42,9 @@
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === "Escape") hide();
   }
+
+  // A pending show timer would otherwise fire after the tooltip is gone.
+  onDestroy(clearTimer);
 </script>
 
 <span

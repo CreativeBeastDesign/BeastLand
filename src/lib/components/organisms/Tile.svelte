@@ -4,6 +4,7 @@
   import type { Snippet } from "svelte";
   import type { Container, ContainerId } from "$lib/tiling/types.js";
   import ShortId from "$lib/components/atoms/ShortId.svelte";
+  import type { ShortId as ShortIdParts } from "$lib/tiling/ids.js";
   import { overflowFade } from "$lib/actions/overflowFade.js";
 
   type Props = {
@@ -11,7 +12,10 @@
     selected?: boolean;
     /** e.g. record display name for the title bar, used when the container has no explicit title. */
     label?: string;
-    allIds: string[];
+    /** Every known id, for the header's short id. Ignored when `short` is given. */
+    allIds?: string[];
+    /** Precomputed short id (`kinds.shortIdOf`) — cheaper than scanning `allIds` per tile. */
+    short?: ShortIdParts;
     children: Snippet;
     onselect?: (id: ContainerId) => void;
     /** Highlighted as the target of the line currently being typed in the terminal. */
@@ -26,7 +30,8 @@
     container,
     selected = false,
     label,
-    allIds,
+    allIds = [],
+    short,
     children,
     onselect,
     preview = false,
@@ -63,7 +68,7 @@
   <header class="tile__bar">
     <span class="tile__ids">
       <span class="tile__id">@{container.id}</span>
-      <ShortId id={container.contentId} all={allIds} />
+      <ShortId id={container.contentId} all={allIds} {short} />
     </span>
     <span class="tile__title">{container.title ?? label ?? ""}</span>
     <span class="tile__kind">{container.kind}</span>

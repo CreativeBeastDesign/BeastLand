@@ -17,8 +17,22 @@
  */
 import type { Span } from "./protocol.js";
 
-/** A fenced block's info string that marks its lines as runnable commands. */
-const RUNNABLE_FENCE_INFO = new Set(["beast", "sh"]);
+/** Fence info strings whose lines are commands, not code. */
+export const RUNNABLE_FENCE_LANGS: ReadonlySet<string> = new Set(["beast", "sh"]);
+const RUNNABLE_FENCE_INFO = RUNNABLE_FENCE_LANGS;
+
+/**
+ * A ref (`@12`, `#xp`), word-boundaried so it doesn't fire inside an
+ * identifier or an email (`a@b`), and at least 2 chars after `#`. Exported
+ * as a source string because every consumer needs its own `lastIndex`; this
+ * is the one definition of the grammar, shared with `$lib/markdown/refs.ts`.
+ */
+export const REF_SOURCE = String.raw`(?<!\w)(@\d+|#[a-z0-9]{2,})\b`;
+
+/** A fresh global matcher for refs. */
+export function refMatcher(): RegExp {
+  return new RegExp(REF_SOURCE, "g");
+}
 
 /** A ``` fence delimiter line, capturing the (possibly empty) info string. */
 const FENCE_RE = /^```(\S*)[ \t]*$/;
@@ -64,7 +78,7 @@ function segment(text: string): Segment[] {
 // Tried left-to-right at each position: inline code first, so its content
 // never gets a second pass for bold/refs; refs are word-boundaried so they
 // don't fire inside identifiers or emails.
-const INLINE_RE = /`([^`]+)`|\*\*([^*]+)\*\*|(?<!\w)(@\d+|#[a-z0-9]{2,})\b/g;
+const INLINE_RE = new RegExp(String.raw`\`([^\`]+)\`|\*\*([^*]+)\*\*|` + REF_SOURCE, "g");
 
 /** Parse one prose (non-fenced) segment into spans: plain text, bold, code, refs. */
 function inlineSpans(text: string): Span[] {

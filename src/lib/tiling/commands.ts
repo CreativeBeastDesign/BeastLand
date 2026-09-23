@@ -13,7 +13,6 @@
 
 import { data } from "$lib/data/store.svelte.js";
 import { workspace } from "./workspace.svelte.js";
-import { shortId } from "./ids.js";
 import type { Container } from "./types.js";
 import {
   flag,
@@ -95,7 +94,7 @@ const itemFieldFlags: FlagSpec[] = [
 /** `#xp` candidates for every known customer, e.g. for `customer <partial>`. */
 function customerSuggestions(): Suggestion[] {
   return data.customers.map((c) => ({
-    value: `#${shortId(c.id, kinds.allIds).short}`,
+    value: `#${kinds.shortIdOf(c.id).short}`,
     label: customerName(c) || "(no name)",
     description: c.company,
     kind: "value",
@@ -105,7 +104,7 @@ function customerSuggestions(): Suggestion[] {
 /** `#fa` candidates for every known document, e.g. for `docs <partial>`. */
 function documentSuggestions(): Suggestion[] {
   return data.documents.map((d) => ({
-    value: `#${shortId(d.id, kinds.allIds).short}`,
+    value: `#${kinds.shortIdOf(d.id).short}`,
     label: d.title || d.number || docTypeLabels[d.docType],
     description: docTypeLabels[d.docType],
     kind: "value",
@@ -115,7 +114,7 @@ function documentSuggestions(): Suggestion[] {
 /** `#pr` candidates for every known project, for `docs new --project <partial>`. */
 function projectSuggestions(): Suggestion[] {
   return projects.projects.map((p) => ({
-    value: `#${shortId(p.id, kinds.allIds).short}`,
+    value: `#${kinds.shortIdOf(p.id).short}`,
     label: p.name || "(unnamed)",
     kind: "value",
   }));

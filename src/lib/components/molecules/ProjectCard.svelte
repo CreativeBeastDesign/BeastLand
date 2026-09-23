@@ -11,8 +11,7 @@
   import { worklog, clock } from "$lib/worklog/store.svelte.js";
   import { entryMinutes, formatDuration, dayKey, timeOfDay } from "$lib/worklog/types.js";
   import { kinds } from "$lib/tiling/kinds.svelte.js";
-  import { shortId } from "$lib/tiling/ids.js";
-  import { commandBridge, runBridge } from "$lib/shell/bridge.js";
+    import { commandBridge, runBridge } from "$lib/shell/bridge.js";
   import RecordView, { type RecordField } from "./RecordView.svelte";
   import Table from "./Table.svelte";
   import Badge from "$lib/components/atoms/Badge.svelte";
@@ -27,7 +26,7 @@
   const dash = (v: string | null | undefined) => (v ? v : "—");
 
   function shortRef(id: string): string {
-    return `#${shortId(id, kinds.allIds).short}`;
+    return `#${kinds.shortIdOf(id).short}`;
   }
 
   let customer = $derived(project.customerId ? data.getCustomer(project.customerId) : undefined);

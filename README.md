@@ -75,11 +75,15 @@ built-in commands (`help`, `clear`, `theme`, `wallpaper`, `echo`, `about`,
 `time`) plus whatever you register. `help` and `help <command>` are generated
 from your declarations, so there is nothing to document by hand.
 
+`thumb` is optional but worth setting: without it a picker downloads every
+full-size wallpaper to draw a 96px preview.
+
 The prompt starts one line tall and grows with the command — a long
 `customer new --name … --email …` stays readable instead of scrolling out of
 sight sideways. Past `maxInputLines` (6 by default) it stops growing and
 scrolls internally, keeping the caret in view; ↑/↓ remain history, as
-everywhere else in the shell.
+everywhere else in the shell. The transcript keeps `maxBlocks` blocks (200)
+and drops the oldest, so a shell left open for days stays bounded.
 
 ## Your first command
 
@@ -422,7 +426,7 @@ updates when it does.
 ```ts
 import { registerTheme, registerWallpaper, registerLook } from "beastland";
 
-registerWallpaper({ id: "sunset", label: "Sunset", src: "https://cdn…/sunset.jpg" });
+registerWallpaper({ id: "sunset", label: "Sunset", src: "https://cdn…/sunset.jpg", thumb: "https://cdn…/sunset-240.jpg" });
 registerTheme({ id: "sunset-theme", label: "Sunset", mode: "dark", glass: true, wallpaper: "sunset" });
 registerLook({ id: "evening", label: "Evening", theme: "sunset-theme", wallpaper: "sunset" });
 ```

@@ -3,7 +3,8 @@
      no store imports. -->
 
 <script lang="ts">
-  type WallpaperOption = { id: string; label: string; src: string };
+  /** `thumb` keeps a picker from downloading every full-size wallpaper. */
+  type WallpaperOption = { id: string; label: string; src: string; thumb?: string };
 
   type Props = {
     wallpapers: WallpaperOption[];
@@ -59,7 +60,7 @@
       title={wallpaper.label}
       onclick={() => select(wallpaper.id)}
     >
-      <img src={wallpaper.src} alt={wallpaper.label} width="96" height="54" loading="lazy" />
+      <img src={wallpaper.thumb ?? wallpaper.src} alt={wallpaper.label} width="96" height="54" loading="lazy" decoding="async" />
     </button>
   {/each}
 </div>

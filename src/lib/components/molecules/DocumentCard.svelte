@@ -38,7 +38,7 @@
         key: "Customer",
         value: customerLabel,
         prose: true,
-        command: doc.customerId ? `#${shortId(doc.customerId, kinds.allIds).short}` : undefined,
+        command: doc.customerId ? `#${kinds.shortIdOf(doc.customerId).short}` : undefined,
       },
       { key: "Date", value: formatDate(doc.documentDate) },
       { key: "Valid until", value: formatDate(doc.validUntil) },

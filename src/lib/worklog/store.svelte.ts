@@ -271,8 +271,16 @@ function createClock() {
     if (started || typeof window === "undefined") return;
     started = true;
     setInterval(() => {
+      // A background tab has nothing to repaint; skipping the write keeps
+      // every `$derived` that reads `clock.now` from recomputing off-screen.
+      if (document.visibilityState === "hidden") return;
       now = Date.now();
     }, 30000);
+    // Catch up as soon as the tab comes back, instead of showing a stale
+    // duration until the next tick.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") now = Date.now();
+    });
   }
 
   return {

@@ -43,6 +43,56 @@ export type ShortId = {
   rest: string;
 };
 
+/** Longest common prefix length of two strings. */
+function lcp(a: string, b: string): number {
+  const max = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < max && a[i] === b[i]) i++;
+  return i;
+}
+
+/** The short id of one bare string, given the longest prefix it shares with any *other* bare id. */
+function fromShared(id: string, bare: string, shared: number): ShortId {
+  const len = Math.min(Math.max(SHORT_ID_MIN, shared + 1), bare.length);
+  return { id, short: bare.slice(0, len), rest: bare.slice(len, Math.max(len, SHORT_ID_DISPLAY)) };
+}
+
+/**
+ * Short ids for a whole id set in one pass.
+ *
+ * `shortId` rescans every other id, so rendering a list costs one O(n) scan
+ * per row — 2000 records took ~270ms per listing, and completion redid it on
+ * every keystroke. Sorting makes the longest prefix an id shares with any
+ * other a comparison with its neighbours, so the whole set is O(n log n).
+ * Equal bare ids are deliberately not treated as clashes, matching
+ * `uniquePrefixLength` (they collide, and `resolveId` reports them ambiguous).
+ */
+export function shortIdIndex(all: readonly string[]): Map<string, ShortId> {
+  const entries = all.map((id) => ({ id, bare: bareId(id) }));
+  const order = entries.map((_, i) => i).sort((a, b) => (entries[a].bare < entries[b].bare ? -1 : entries[a].bare > entries[b].bare ? 1 : 0));
+
+  const index = new Map<string, ShortId>();
+  for (let i = 0; i < order.length; i++) {
+    const { id, bare } = entries[order[i]];
+    let shared = 0;
+    // Nearest neighbour with a *different* bare id, in each direction.
+    for (let j = i - 1; j >= 0; j--) {
+      const other = entries[order[j]].bare;
+      if (other === bare) continue;
+      shared = Math.max(shared, lcp(bare, other));
+      break;
+    }
+    for (let j = i + 1; j < order.length; j++) {
+      const other = entries[order[j]].bare;
+      if (other === bare) continue;
+      shared = Math.max(shared, lcp(bare, other));
+      break;
+    }
+    index.set(id, fromShared(id, bare, shared));
+  }
+  return index;
+}
+
 /** Compute the short id of `id` relative to every id in `all` (full ids). */
 export function shortId(id: string, all: string[]): ShortId {
   const bare = bareId(id);

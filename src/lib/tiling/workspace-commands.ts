@@ -22,7 +22,7 @@
  */
 
 import { workspace } from "./workspace.svelte.js";
-import { shortId } from "./ids.js";
+import { clearHistory } from "$lib/shell/history.js";
 import type { Container, Direction, WorkspaceLayout } from "./types.js";
 import { kinds, type KindSpec } from "./kinds.svelte.js";
 import { fieldsAt, type FieldDef, type Level, type ViewRow } from "./views.js";
@@ -45,12 +45,12 @@ import {
 
 /** `#` + the shortest unique prefix of a full record id (plain text, for messages). */
 export function sid(id: string): string {
-  return `#${shortId(id, kinds.allIds).short}`;
+  return `#${kinds.shortIdOf(id).short}`;
 }
 
 /** `#xp` bold + dimmed `oakahe` tail, as spans for styled output. Clicking runs `#xp`. */
 export function idSpans(id: string): Span[] {
-  const parts = shortId(id, kinds.allIds);
+  const parts = kinds.shortIdOf(id);
   return [
     { text: `#${parts.short}`, tone: "id", command: `#${parts.short}` },
     { text: parts.rest, tone: "id-rest" },
@@ -74,7 +74,7 @@ export function say(ctx: CommandContext, before: string, id: string, after = "")
 }
 
 export function printAmbiguous(ids: string[], ctx: CommandContext) {
-  const labels = ids.map((id) => `#${shortId(id, kinds.allIds).short}…`);
+  const labels = ids.map((id) => `#${kinds.shortIdOf(id).short}…`);
   ctx.print(`ambiguous: ${labels.join(" ")}`, "error");
 }
 
@@ -219,7 +219,7 @@ export function recordSuggestions(kind?: string): Suggestion[] {
   const specs = kind ? [kinds.get(kind)].filter((s) => s !== undefined) : kinds.all;
   return specs.flatMap((spec) =>
     (spec.ids?.() ?? []).map((id) => ({
-      value: `#${shortId(id, kinds.allIds).short}`,
+      value: `#${kinds.shortIdOf(id).short}`,
       label: spec.label(id) || "(unnamed)",
       description: spec.kind,
       kind: "value" as const,
@@ -853,6 +853,9 @@ const wsCommand: Command = {
         return;
       }
       const ok = workspace.remove(target.id);
+      // A no-op unless the app keys terminal history by workspace id (the
+      // documented `historyKey={workspace.activeId}` pattern).
+      if (ok) clearHistory(target.id);
       ctx.print(ok ? `removed workspace ${target.name}` : "cannot remove the last workspace", ok ? "output" : "error");
       return;
     }
