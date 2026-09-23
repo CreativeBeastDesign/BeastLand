@@ -1,0 +1,61 @@
+/*
+ * tokyo-glass theme
+ *
+ * layer 4 of the token pipeline: a dark neon "Tokyo night" palette with a
+ * heavily glassy, glow-forward treatment.
+ * Apply with <html data-theme="tokyo-glass"> or via the theme module.
+ */
+
+[data-theme="tokyo-glass"] {
+  /* Surfaces */
+  --color-bg: oklch(0.13 0.02 300);
+  --color-surface-0: oklch(0.17 0.025 300);
+  --color-surface-1: oklch(0.21 0.03 300);
+  --color-surface-2: oklch(0.27 0.035 300);
+  --color-overlay: oklch(0.3 0.035 300 / 0.85);
+
+  /* Text */
+  --color-text-high: oklch(0.94 0.02 300);
+  --color-text-med: oklch(0.74 0.025 300);
+  --color-text-low: oklch(0.55 0.025 300);
+  --color-text-disabled: oklch(0.45 0.02 300 / 0.6);
+
+  /* Accent (tokyo --cyan) */
+  --brand-primary: oklch(0.82 0.13 190);
+  --color-accent: oklch(0.82 0.13 190);
+  --color-accent-soft: oklch(0.82 0.13 190 / 0.16);
+  --color-accent-strong: oklch(0.72 0.15 190);
+  --color-on-accent: oklch(0.14 0.02 300);
+
+  /* Status (tokyo green / yellow / red / blue) */
+  --color-success: oklch(0.78 0.15 150);
+  --color-warning: oklch(0.84 0.16 95);
+  --color-danger: oklch(0.72 0.2 20);
+  --color-info: oklch(0.76 0.13 235);
+
+  /* Borders */
+  --color-border: oklch(0.94 0.02 300 / 0.14);
+  --color-border-strong: oklch(0.94 0.02 300 / 0.28);
+  --color-border-subtle: oklch(0.94 0.02 300 / 0.07);
+  --color-border-active: oklch(0.82 0.13 190 / 0.6);
+
+  /* Focus / glow (strong neon) */
+  --color-focus: oklch(0.82 0.13 190);
+  --color-glow: oklch(0.82 0.13 190 / 0.45);
+
+  /* Glass */
+  --color-glass: oklch(0.21 0.03 300 / 0.55);
+  --fx-glass-saturation: 1.55;
+  --fx-glass-contrast: 1.08;
+
+  --glow-accent: 0 0 18px oklch(0.82 0.13 190 / 0.5);
+  --glow-active: 0 0 30px oklch(0.82 0.13 190 / 0.55);
+
+  /* Component overrides */
+  --button-primary-bg: var(--color-accent);
+  --button-primary-text: var(--color-on-accent);
+  --dock-item-active-text: var(--color-accent);
+  --sidebar-item-active-bg: var(--color-accent-soft);
+  --sidebar-item-active-text: var(--color-accent);
+  --mode-bg: var(--color-overlay);
+}
