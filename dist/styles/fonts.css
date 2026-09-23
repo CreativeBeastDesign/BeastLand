@@ -1,0 +1,30 @@
+/*
+ * Fonts
+ *
+ * Illinois Mono ships with the library (src/lib/assets). Lexend (UI font) is
+ * loaded from Google Fonts by the consuming app, see app.html.
+ */
+
+@font-face {
+  font-family: "Illinois Mono";
+  src: url("../assets/IllinoisMono-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Illinois Mono";
+  src: url("../assets/IllinoisMono-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Illinois Mono";
+  src: url("../assets/IllinoisMono-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
