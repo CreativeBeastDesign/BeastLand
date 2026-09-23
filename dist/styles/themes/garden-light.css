@@ -1,0 +1,91 @@
+/*
+ * garden-light theme
+ *
+ * layer 4 of the token pipeline: a warm light theme for the gardeners.
+ * Brand: beige #d5ae9f (primary) and mint #a7cdbc (secondary). Both are
+ * pale, so they are used as-is for fills, tints and glass, while text,
+ * borders and focus rings use darker derivations of the same hues so they
+ * pass contrast on light surfaces.
+ * Apply with <html data-theme="garden-light"> or via the theme module.
+ */
+
+[data-theme="garden-light"] {
+  /* Brand */
+  --brand-primary: #d5ae9f;
+  --brand-secondary: #a7cdbc;
+
+  /* Surfaces: warm paper, hue from the beige */
+  --color-bg: oklch(0.955 0.012 55);
+  --color-surface-0: oklch(0.985 0.008 60);
+  --color-surface-1: oklch(0.95 0.014 55);
+  --color-surface-2: oklch(0.91 0.02 50);
+  --color-overlay: oklch(0.9 0.02 50 / 0.85);
+
+  /* Text: warm dark brown, never pure black */
+  --color-text-high: oklch(0.25 0.03 45);
+  --color-text-med: oklch(0.42 0.03 45);
+  --color-text-low: oklch(0.49 0.03 45);
+  --color-text-disabled: oklch(0.6 0.02 45 / 0.6);
+
+  /* Accent: terracotta derived from the beige (darker, a touch more chroma) */
+  --color-accent: oklch(from var(--brand-primary) calc(l - 0.3) calc(c + 0.05) h);
+  --color-accent-soft: oklch(from var(--brand-primary) l c h / 0.45);
+  --color-accent-strong: oklch(from var(--brand-primary) calc(l - 0.38) calc(c + 0.05) h);
+  --color-on-accent: oklch(0.98 0.01 60);
+
+  /* Secondary: deep mint derived from the brand mint */
+  --color-secondary: oklch(from var(--brand-secondary) calc(l - 0.36) calc(c + 0.03) h);
+  --color-secondary-soft: oklch(from var(--brand-secondary) l c h / 0.5);
+  --color-secondary-strong: oklch(from var(--brand-secondary) calc(l - 0.44) calc(c + 0.03) h);
+  --color-on-secondary: oklch(0.98 0.01 160);
+
+  /* Status */
+  --color-success: oklch(0.5 0.13 150);
+  --color-warning: oklch(0.55 0.14 75);
+  --color-danger: oklch(0.52 0.18 25);
+  --color-info: var(--color-secondary);
+
+  /* Borders (warm dark alpha) */
+  --color-border: oklch(0.25 0.03 45 / 0.16);
+  --color-border-strong: oklch(0.25 0.03 45 / 0.32);
+  --color-border-subtle: oklch(0.25 0.03 45 / 0.08);
+  --color-border-active: oklch(from var(--color-accent) l c h / 0.7);
+
+  /* Focus = mint, glow = terracotta */
+  --color-focus: var(--color-secondary);
+  --color-glow: oklch(from var(--color-accent) l c h / 0.3);
+  --glow-accent: 0 0 14px oklch(from var(--color-accent) l c h / 0.3);
+  --glow-secondary: 0 0 14px oklch(from var(--color-secondary) l c h / 0.3);
+  --glow-focus: 0 0 0 3px oklch(from var(--color-secondary) l c h / 0.35);
+  --glow-active: 0 0 22px oklch(from var(--color-accent) l c h / 0.28);
+
+  /* Gradient border uses the raw brand pair (it sits on light glass, so the
+     pale beige→mint reads as a soft ribbon rather than a neon edge) */
+  --gradient-border-active: linear-gradient(45deg, var(--color-accent), var(--color-secondary));
+  --gradient-brand: linear-gradient(45deg, var(--color-accent), var(--color-secondary));
+
+  /* Glass: warm white. A light wallpaper is mostly highlights, so a strong
+     blur smears it into milk — use a gentler blur and a thinner tint, and
+     let the drawing show through. Text contrast is still AA (see test). */
+  --color-glass: oklch(0.985 0.008 60 / 0.58);
+  --fx-blur-sm: 4px;
+  --fx-blur-md: 8px;
+  --fx-blur-lg: 14px;
+  --fx-glass-saturation: 1.1;
+  --fx-glass-contrast: 1.02;
+  --fx-shadow-color: oklch(0.3 0.03 45 / 0.28);
+  --fx-noise-opacity: 0.05;
+  --shadow-tile: 0 2px 8px oklch(0.3 0.03 45 / 0.12), 0 18px 44px oklch(0.3 0.03 45 / 0.16);
+  --shadow-tile-selected: 0 2px 8px oklch(0.3 0.03 45 / 0.16), 0 24px 56px oklch(0.3 0.03 45 / 0.22);
+
+  /* Component overrides */
+  --button-primary-bg: var(--color-accent);
+  --button-primary-text: var(--color-on-accent);
+  --control-bg: oklch(0.95 0.014 55);
+  --window-bg: oklch(0.985 0.008 60 / 0.94);
+  --window-titlebar-bg: oklch(from var(--brand-primary) l c h / 0.25);
+  --modal-backdrop: oklch(0.25 0.03 45 / 0.4);
+  --dock-item-active-text: var(--color-secondary);
+  --sidebar-item-active-bg: var(--color-secondary-soft);
+  --sidebar-item-active-text: var(--color-secondary-strong);
+}

@@ -1,0 +1,57 @@
+/*
+ * hypr-dark theme
+ *
+ * layer 4 of the token pipeline: a dark fairy / hyprland-inspired look.
+ * Apply with <html data-theme="hypr-dark"> or via the theme module.
+ */
+
+[data-theme="hypr-dark"] {
+  /* Surfaces */
+  --color-bg: oklch(0.12 0.02 250);
+  --color-surface-0: oklch(0.16 0.02 250);
+  --color-surface-1: oklch(0.2 0.025 250);
+  --color-surface-2: oklch(0.25 0.03 250);
+  --color-overlay: oklch(0.28 0.03 250 / 0.85);
+
+  /* Text */
+  --color-text-high: oklch(0.96 0.01 250);
+  --color-text-med: oklch(0.75 0.015 250);
+  --color-text-low: oklch(0.55 0.015 250);
+  --color-text-disabled: oklch(0.45 0.015 250 / 0.6);
+
+  /* Accent (hypr blue->violet) */
+  --brand-primary: oklch(0.68 0.18 285);
+  --color-accent: oklch(0.68 0.18 285);
+  --color-accent-soft: oklch(0.68 0.18 285 / 0.18);
+  --color-accent-strong: oklch(0.6 0.18 285);
+  /* Violet at L 0.68 can't carry white text (2.9:1); use a deep violet-black. */
+  --color-on-accent: oklch(0.16 0.04 285);
+
+  /* Status */
+  --color-success: oklch(0.72 0.16 150);
+  --color-warning: oklch(0.8 0.16 85);
+  --color-danger: oklch(0.66 0.2 25);
+  --color-info: oklch(0.74 0.12 235);
+
+  /* Borders */
+  --color-border: oklch(0.96 0.01 250 / 0.14);
+  --color-border-strong: oklch(0.96 0.01 250 / 0.28);
+  --color-border-subtle: oklch(0.96 0.01 250 / 0.07);
+  --color-border-active: oklch(0.68 0.18 285 / 0.6);
+
+  /* Focus / glow */
+  --color-focus: oklch(0.68 0.18 285);
+  --color-glow: oklch(0.68 0.18 285 / 0.4);
+
+  /* Glass */
+  --color-glass: oklch(0.2 0.025 250 / 0.6);
+  --fx-glass-saturation: 1.4;
+  --fx-glass-contrast: 1.06;
+  --fx-shadow-color: oklch(0% 0 0 / 0.55);
+
+  /* Component overrides */
+  --button-primary-bg: var(--color-accent);
+  --control-bg: oklch(0.2 0.025 250);
+  --window-bg: oklch(0.155 0.02 250 / 0.92);
+  --modal-backdrop: oklch(0.1 0.02 250 / 0.65);
+}

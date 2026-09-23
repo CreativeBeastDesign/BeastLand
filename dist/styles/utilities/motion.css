@@ -1,0 +1,105 @@
+/*
+ * Motion utilities
+ *
+ * Reusable animation/keyframe utilities that rely on the motion tokens
+ * (--ease-hypr, --duration-*, --scale-window-*, --translate-window-*).
+ */
+
+@keyframes hypr-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes hypr-window-in {
+  from {
+    opacity: 0;
+    transform: scale(var(--scale-window-in)) translateY(var(--translate-window-in));
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes hypr-window-out {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(var(--scale-window-out)) translateY(calc(var(--translate-window-in) * -1));
+  }
+}
+
+@keyframes hypr-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes hypr-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.motion-fade-in {
+  animation: hypr-fade-in var(--duration-normal) var(--ease-out);
+}
+
+.motion-window-in {
+  animation: hypr-window-in var(--duration-normal) var(--ease-hypr);
+}
+
+.motion-window-out {
+  animation: hypr-window-out var(--duration-normal) var(--ease-hypr);
+}
+
+.motion-slide-in-right {
+  animation: hypr-slide-in-right var(--duration-normal) var(--ease-hypr);
+}
+
+.motion-pop-in {
+  animation: hypr-pop-in var(--duration-normal) var(--ease-hypr);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-fade-in,
+  .motion-window-in,
+  .motion-window-out,
+  .motion-slide-in-right,
+  .motion-pop-in {
+    animation: none;
+  }
+}
+
+/* Global guard: collapse every transition/animation duration (rather than
+   disabling them outright) so components keep their before/after state
+   changes — just instantly — without every component needing its own
+   reduced-motion rule. Per-class rules above remain for the cases (like
+   `.motion-window-*`) where "none" reads better than a near-zero run. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
