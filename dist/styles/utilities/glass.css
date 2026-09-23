@@ -1,0 +1,113 @@
+.surface {
+    border-radius: var(--radius-window);
+}
+
+.surface--glass {
+    position: relative;
+    background: var(--color-glass);
+    border: var(--border-width) solid var(--color-border);
+    box-shadow:
+        var(--shadow-window),
+        inset 0 1px 0 color-mix(in oklab, white 8%, transparent);
+
+    backdrop-filter: blur(var(--fx-blur-md))
+        saturate(var(--fx-glass-saturation)) contrast(var(--fx-glass-contrast));
+}
+
+.surface--active {
+    border: var(--border-active-width) solid transparent;
+
+    background:
+        linear-gradient(var(--color-glass), var(--color-glass)) padding-box,
+        var(--gradient-border-active) border-box;
+
+    box-shadow:
+        var(--shadow-window),
+        0 0 0 1px var(--color-border-active),
+        0 0 22px var(--color-glow);
+}
+
+/* Overflow fade mask — paired with `use:overflowFade`. No attribute, no
+   mask: a container with nothing clipped never fades its last visible line. */
+[data-overflow] {
+    --fade-top: 0px;
+    --fade-bottom: 0px;
+    mask-image: linear-gradient(
+        to bottom,
+        transparent,
+        black var(--fade-top),
+        black calc(100% - var(--fade-bottom)),
+        transparent
+    );
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        transparent,
+        black var(--fade-top),
+        black calc(100% - var(--fade-bottom)),
+        transparent
+    );
+}
+
+[data-overflow="top"],
+[data-overflow="both"] {
+    --fade-top: 1.25rem;
+}
+
+[data-overflow="bottom"],
+[data-overflow="both"] {
+    --fade-bottom: 1.5rem;
+}
+
+/* Grain — subtle noise overlay for glass surfaces. Applied via class `grain`
+   on Tile's root and Surface's root when `glass` is set. Never on the
+   wallpaper (photographic). */
+.grain {
+    position: relative;
+}
+
+.grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: var(--fx-noise);
+    background-size: 128px;
+    opacity: var(--fx-noise-opacity);
+    mix-blend-mode: overlay;
+    border-radius: inherit;
+    z-index: 0;
+}
+
+.grain > * {
+    position: relative;
+    z-index: 1;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+    .surface--glass,
+    .tile,
+    .terminal__panel,
+    .terminal__popup {
+        background: color-mix(
+            in oklab,
+            var(--color-surface-0) 88%,
+            transparent
+        );
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .surface--glass,
+    .tile,
+    .terminal__panel,
+    .terminal__popup {
+        backdrop-filter: none;
+        background: var(--color-surface-1);
+    }
+
+    /* Grain relies on the glass layer showing through with `mix-blend-mode:
+       overlay`; on a flat surface it just adds noise, so hide it. */
+    .grain::after {
+        display: none;
+    }
+}
