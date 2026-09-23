@@ -13,7 +13,7 @@
  */
 
 import { untrack, type Component } from "svelte";
-import type { CommandContext, FlagSpec, ParsedArgs } from "$lib/shell/protocol.js";
+import type { CommandContext, FlagSpec, Intent, ParsedArgs } from "$lib/shell/protocol.js";
 import { DEFAULT_SIZE } from "./types.js";
 import { bareId, shortId, shortIdIndex, type ShortId } from "./ids.js";
 import type { ViewFn } from "./views.js";
@@ -75,6 +75,14 @@ export type KindSpec = {
    * completion and `help`; names must not collide with those four.
    */
   actions?: KindAction[];
+  /**
+   * Preview of `@n <args>` / `#id <args>` for verbs the generic dispatcher
+   * doesn't understand (typically this kind's `actions`, e.g. `item 3 …`).
+   * Consulted by `previewContainerArgs` after the built-in verbs; return null
+   * to fall back to the target-only intent. Same contract as
+   * `Command.preview`: pure and cheap — it runs on every keystroke.
+   */
+  preview?: (contentId: string, args: string[]) => Intent | null;
 };
 
 export type KindAction = {

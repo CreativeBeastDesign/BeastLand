@@ -24,6 +24,11 @@
     footer?: Snippet;
     onrowclick?: (row: T) => void;
     selectedKey?: string;
+    /**
+     * Row that is "about to be acted on" — a transient preview (e.g. the row a
+     * half-typed command targets), not a selection. Independent of `selectedKey`.
+     */
+    markedKey?: string;
     empty?: string;
   };
 
@@ -37,6 +42,7 @@
     footer,
     onrowclick,
     selectedKey,
+    markedKey,
     empty = "No data",
   }: Props = $props();
 
@@ -85,6 +91,7 @@
           class="table__row"
           class:table__row--clickable={!!onrowclick}
           class:table__row--selected={selectedKey !== undefined && selectedKey === rowKey(row)}
+          class:table__row--marked={markedKey !== undefined && markedKey === rowKey(row)}
           tabindex={onrowclick ? 0 : undefined}
           onclick={() => onrowclick?.(row)}
           onkeydown={(event) => handleRowKeydown(event, row)}
@@ -192,6 +199,12 @@
 
   .table__row--selected {
     background: var(--color-accent-soft);
+  }
+
+  /* Transient preview: tinted + inset bar, so it never shifts row height. */
+  .table__row--marked {
+    background: color-mix(in oklab, var(--color-secondary) 12%, transparent);
+    box-shadow: inset 3px 0 0 var(--color-secondary);
   }
 
   .table__row--clickable:focus-visible {

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0
+
+- `Table` gains `markedKey?: string` — a transient "about to be acted on"
+  row (`.table__row--marked`: secondary-tinted background plus an inset 3px
+  bar, layout-neutral), separate from the persistent `selectedKey`.
+- `KindSpec.preview?: (contentId, args) => Intent | null` lets a kind preview
+  its own verbs (e.g. `@2 item 1` / `#id item 1 …`). `previewContainerArgs`
+  asks it for any non-flag verb other than `close`/`title`/`move`, before the
+  flag shorthands — matching `applyContainerArgs`' dispatch order, so
+  `item 3 -h` isn't previewed as a resize. Pure and cheap, like
+  `Command.preview`.
+- `Intent.detail?: Record<string, unknown>` — structured app payload passed
+  through untouched to `shell.preview`, so apps no longer encode data into
+  `hint`.
+
 ## 0.5.1
 
 - Fixed: pressing ArrowDown while typing a command no longer wipes the input,

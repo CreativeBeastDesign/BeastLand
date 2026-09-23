@@ -50,6 +50,12 @@ export type Intent = {
   ghost?: { x: number; y: number; w: number; h: number };
   /** Whether the action would be refused (overlap, edge…). */
   invalid?: boolean;
+  /**
+   * App-defined structured payload, passed through untouched to
+   * `shell.preview` — for data a surface needs that doesn't belong in `hint`
+   * (e.g. which row a half-typed `item 3` targets).
+   */
+  detail?: Record<string, unknown>;
 };
 
 export type OutputLine = {

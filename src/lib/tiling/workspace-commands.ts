@@ -443,9 +443,17 @@ export function previewContainerArgs(container: Container, args: string[]): Inte
     return dir ? moveIntent(container, dir, target) : { target };
   }
 
+  // A verb (`set`, a kind action like `item`, …) belongs to the kind: ask its
+  // own `preview` before the flag shorthands below, matching the dispatch
+  // order of `applyContainerArgs` — otherwise `item 3 -h` would read as a resize.
+  if (!head.startsWith("-")) {
+    const fromKind = kinds.get(container.kind)?.preview?.(container.contentId, args);
+    return fromKind ? { target, ...fromKind } : { target };
+  }
+
   // No keyword: bare flags — a directional shorthand (`-u`) or a resize
-  // (`--width/-w`, `--height/-h`). Anything else (set/actions/unknown)
-  // falls through to the target-only default below.
+  // (`--width/-w`, `--height/-h`). Anything else falls through to the
+  // target-only default below.
   const parsed = parseArgs(args);
   const dir = directionFromArgs(parsed);
   if (dir) return moveIntent(container, dir, target);
