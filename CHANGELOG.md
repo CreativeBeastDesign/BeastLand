@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.1
+
+- Fixed: pressing ArrowDown while typing a command no longer wipes the input,
+  and ArrowUp → ArrowDown now restores the unsent draft instead of an empty
+  line — shell-style (bash/zsh/fish) history navigation. ArrowDown on the
+  live line with no history recall in progress is a no-op. Edits made to a
+  recalled history entry are kept for the rest of the session (readline
+  semantics) but never persisted. New pure module
+  `src/lib/shell/history-nav.ts` (`initHistoryNav`, `navigateUp`,
+  `navigateDown`, `resetHistoryNav`) holds the state machine, with unit
+  tests in `tests/history-nav.test.ts`. Submitting or pressing Escape resets
+  the draft/edits. In a wrapped (multi-line) prompt, ArrowUp/Down now only
+  trigger history recall when the caret is on the first/last visual row —
+  otherwise the caret moves between wrapped lines as in a normal text field.
+
 ## 0.5.0
 
 - Generic undo facility: `src/lib/shell/undo.svelte.ts` exports `undoStack`

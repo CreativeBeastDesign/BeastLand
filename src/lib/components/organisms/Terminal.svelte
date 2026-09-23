@@ -23,6 +23,7 @@
   import { registry } from "$lib/shell/registry.svelte.js";
   import { shell } from "$lib/shell/state.svelte.js";
   import { loadHistory, persistHistory, HISTORY_CAP } from "$lib/shell/history.js";
+  import { initHistoryNav, navigateDown, navigateUp, resetHistoryNav, type HistoryNavState } from "$lib/shell/history-nav.js";
   import { overflowFade } from "$lib/actions/overflowFade.js";
 
   type Props = {
@@ -146,7 +147,7 @@
 
   let input = $state("");
   let history = $state<string[]>([]);
-  let historyIndex = $state(0);
+  let historyNav = $state<HistoryNavState>(initHistoryNav());
   let selectedBlockId = $state<number | null>(null);
 
   // Reload history whenever `historyKey` changes (including its first set).
@@ -158,7 +159,7 @@
     // length) inside a tracked scope would re-run this effect on every push.
     untrack(() => {
       history = loaded;
-      historyIndex = loaded.length;
+      historyNav = initHistoryNav();
     });
   });
 
@@ -350,7 +351,7 @@
       if (history.length > HISTORY_CAP) history = history.slice(-HISTORY_CAP);
       persistHistory(historyKey, history);
     }
-    historyIndex = history.length;
+    historyNav = resetHistoryNav();
     input = "";
     shell.setPreview(null);
 
@@ -378,19 +379,73 @@
   }
 
   function navigateHistory(direction: -1 | 1) {
-    if (history.length === 0) return;
+    const caret = inputEl?.selectionStart ?? input.length;
+    const result =
+      direction === -1
+        ? navigateUp(historyNav, history, input, caret)
+        : navigateDown(historyNav, history, input, caret);
 
-    const next = historyIndex + direction;
-    if (next < 0) return;
+    historyNav = result.state;
+    input = result.text;
+    const nextCaret = result.caret;
+    tick().then(() => inputEl?.setSelectionRange(nextCaret, nextCaret));
+  }
 
-    if (next >= history.length) {
-      historyIndex = history.length;
-      input = "";
-      return;
-    }
+  /**
+   * Whether the caret in `el` sits on its top or bottom *visual* (wrapped)
+   * row. The prompt never contains a real newline (`handleInput` flattens
+   * pasted ones), so a long command can still wrap across several rows as
+   * `autoGrow` expands the textarea — ArrowUp/Down should move the caret
+   * between those wrapped rows and only fall through to history recall at
+   * the top/bottom edge, mirroring a native multi-line text field.
+   *
+   * Measured with an off-screen mirror div (the standard technique for
+   * textareas, which expose no caret-coordinate API of their own).
+   */
+  function caretOnEdgeRow(el: HTMLTextAreaElement, edge: "top" | "bottom"): boolean {
+    const caret = el.selectionStart ?? 0;
+    const style = getComputedStyle(el);
+    const mirror = document.createElement("div");
+    const copiedProps = [
+      "boxSizing",
+      "width",
+      "paddingTop",
+      "paddingRight",
+      "paddingBottom",
+      "paddingLeft",
+      "borderTopWidth",
+      "borderRightWidth",
+      "borderBottomWidth",
+      "borderLeftWidth",
+      "fontFamily",
+      "fontSize",
+      "fontWeight",
+      "fontStyle",
+      "letterSpacing",
+      "lineHeight",
+      "tabSize",
+    ] as const satisfies readonly (keyof CSSStyleDeclaration)[];
+    for (const prop of copiedProps) (mirror.style[prop] as string) = style[prop] as string;
+    mirror.style.position = "absolute";
+    mirror.style.visibility = "hidden";
+    mirror.style.top = "0";
+    mirror.style.left = "-9999px";
+    mirror.style.height = "auto";
+    mirror.style.whiteSpace = "pre-wrap";
+    mirror.style.wordWrap = "break-word";
 
-    historyIndex = next;
-    input = history[historyIndex];
+    const before = document.createTextNode(el.value.slice(0, caret));
+    const marker = document.createElement("span");
+    marker.textContent = el.value.slice(caret, caret + 1) || ".";
+    mirror.append(before, marker);
+    document.body.appendChild(mirror);
+
+    const lineHeight = parseFloat(style.lineHeight) || marker.offsetHeight || 16;
+    const caretTop = marker.offsetTop;
+    const totalHeight = mirror.scrollHeight;
+    document.body.removeChild(mirror);
+
+    return edge === "top" ? caretTop < lineHeight : caretTop >= totalHeight - lineHeight * 1.5;
   }
 
   /** Accept a suggestion: replace the partial token and keep typing. */
@@ -532,6 +587,10 @@
 
     if (event.key === "Escape") {
       event.preventDefault();
+      // Escape always drops any in-progress history recall (and its
+      // per-entry edits) — same "back to what I was typing" reset a submit
+      // gets, so a stray Escape can't leave a stale draft behind.
+      historyNav = resetHistoryNav();
       // Priority: dismiss the popup (handled above, already returned) >
       // cancel a running block > deselect a walked-to block > blur.
       if (abortRunningBlock()) return;
@@ -550,9 +609,14 @@
       }
       void submitLine(input);
     } else if (event.key === "ArrowUp") {
+      // In a wrapped (multi-line) prompt, only recall history when the
+      // caret is already on the first visual row — otherwise let the
+      // textarea move the caret up a wrapped line as usual.
+      if (inputEl && !caretOnEdgeRow(inputEl, "top")) return;
       event.preventDefault();
       navigateHistory(-1);
     } else if (event.key === "ArrowDown") {
+      if (inputEl && !caretOnEdgeRow(inputEl, "bottom")) return;
       event.preventDefault();
       navigateHistory(1);
     } else if (event.key === "Tab") {
