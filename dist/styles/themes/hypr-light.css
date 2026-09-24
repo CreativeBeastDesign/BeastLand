@@ -1,0 +1,63 @@
+/*
+ * hypr-light theme
+ *
+ * layer 4 of the token pipeline: a bright, airy variant of the hypr look.
+ * Apply with <html data-theme="hypr-light"> or via the theme module.
+ */
+
+[data-theme="hypr-light"] {
+  /* Surfaces */
+  --color-bg: oklch(0.94 0.015 250);
+  --color-surface-0: oklch(0.97 0.012 250);
+  --color-surface-1: oklch(0.93 0.015 250);
+  --color-surface-2: oklch(0.88 0.02 250);
+  --color-overlay: oklch(0.85 0.02 250 / 0.85);
+
+  /* Text */
+  --color-text-high: oklch(0.2 0.02 250);
+  --color-text-med: oklch(0.38 0.02 250);
+  --color-text-low: oklch(0.5 0.02 250);
+  --color-text-disabled: oklch(0.6 0.015 250 / 0.6);
+
+  /* Accent */
+  --brand-primary: oklch(0.55 0.18 285);
+  --color-accent: oklch(0.55 0.18 285);
+  --color-accent-soft: oklch(0.55 0.18 285 / 0.16);
+  --color-accent-strong: oklch(0.48 0.18 285);
+  --color-on-accent: oklch(0.98 0.01 285);
+
+  /* Secondary: the base cyan is tuned for dark surfaces; darken it for paper. */
+  --brand-secondary: oklch(0.5 0.12 195);
+  --color-secondary: oklch(0.5 0.12 195);
+  --color-secondary-soft: oklch(0.5 0.12 195 / 0.16);
+  --color-secondary-strong: oklch(0.42 0.12 195);
+  --color-on-secondary: oklch(0.98 0.01 195);
+
+  /* Status */
+  --color-success: oklch(0.5 0.16 150);
+  --color-warning: oklch(0.58 0.16 85);
+  --color-danger: oklch(0.5 0.2 25);
+  --color-info: oklch(0.52 0.12 235);
+
+  /* Borders */
+  --color-border: oklch(0.2 0.02 250 / 0.16);
+  --color-border-strong: oklch(0.2 0.02 250 / 0.32);
+  --color-border-subtle: oklch(0.2 0.02 250 / 0.08);
+  --color-border-active: oklch(0.55 0.18 285 / 0.6);
+
+  /* Focus / glow */
+  --color-focus: oklch(0.55 0.18 285);
+  --color-glow: oklch(0.55 0.18 285 / 0.35);
+
+  /* Glass */
+  --color-glass: oklch(0.97 0.012 250 / 0.62);
+  --fx-glass-saturation: 1.35;
+  --fx-glass-contrast: 1.02;
+  --fx-shadow-color: oklch(0.3 0.02 250 / 0.4);
+
+  /* Component overrides */
+  --button-primary-bg: var(--color-accent);
+  --control-bg: oklch(0.93 0.015 250);
+  --window-bg: oklch(0.97 0.012 250 / 0.95);
+  --modal-backdrop: oklch(0.2 0.02 250 / 0.45);
+}

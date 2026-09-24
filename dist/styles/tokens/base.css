@@ -1,0 +1,39 @@
+:root {
+    /* 1. Base Brand Colors (Absolute) */
+    --brand-primary: oklch(65% 0.2 250); /* A nice vibrant blue */
+    --brand-secondary: oklch(75% 0.13 195); /* A vibrant cyan counterpart */
+
+    /* 2. Semantic Base Colors (Absolute) */
+    --color-bg: oklch(15% 0.02 250);
+    --color-surface-0: oklch(19% 0.02 250);
+    --color-text-high: oklch(95% 0.01 250);
+    --color-accent: var(--brand-primary);
+    --color-secondary: var(--brand-secondary);
+
+    /* 3. Glass & Borders (Relative Colors - The Magic) */
+
+    /* Glass Tint: derived from surface-1 (once defined) so panels stay
+       translucent enough for a wallpaper to read through; drops alpha */
+    --color-glass: oklch(from var(--color-surface-1, var(--color-surface-0)) l c h / 0.6);
+
+    /* Subtle Border: Uses text color, drops alpha to 12% */
+    --color-border: oklch(from var(--color-text-high) l c h / 0.12);
+
+    /* Active Border: Uses accent color, drops alpha to 60% */
+    --color-border-active: oklch(from var(--color-accent) l c h / 0.6);
+
+    /* 4. State Modifiers (Relative Math) */
+
+    /* Hover Surface: Increases lightness by 4% */
+    --color-surface-hover: oklch(
+        from var(--color-surface-0) calc(l + 0.04) c h
+    );
+
+    /* Active Glow: Keeps lightness, boosts chroma slightly, drops alpha */
+    --color-glow: oklch(from var(--color-accent) l calc(c + 0.05) h / 0.35);
+
+    /* Inactive/Muted Text: Drops lightness by 20% */
+    --color-text-low: oklch(
+        from var(--color-text-high) calc(l - 0.25) c h / 0.7
+    );
+}
