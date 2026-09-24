@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1
+
+- `RecordView` lays key/value pairs side by side on wide tiles instead of
+  one tall column: 2 pairs from a 32rem tile, 3 from 52rem (container
+  queries on the tile). Pairs flow row by row; `wide` fields still span the
+  full width. New `maxPairs?: 1 | 2 | 3` prop (default 3); `1` keeps the
+  previous single-column layout.
+
 ## 0.6.0
 
 - `Table` gains `markedKey?: string` — a transient "about to be acted on"

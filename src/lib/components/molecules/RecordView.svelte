@@ -23,9 +23,16 @@
      * Without it, command fields render as plain text.
      */
     oncommand?: (command: string, mode: CommandMode) => void;
+    /**
+     * How many key/value pairs may sit side by side on a wide tile: pairs
+     * flow row by row, `2` from a 32rem tile, `3` from 52rem (container
+     * queries on the tile, so it follows the tile's width, not the window's).
+     * `1` keeps the single key/value column. Default 3.
+     */
+    maxPairs?: 1 | 2 | 3;
   };
 
-  let { fields, oncommand }: Props = $props();
+  let { fields, oncommand, maxPairs = 3 }: Props = $props();
 
   function activate(event: MouseEvent, command: string) {
     event.stopPropagation(); // don't also select the tile
@@ -33,7 +40,7 @@
   }
 </script>
 
-<div class="record-view">
+<div class="record-view" data-max-pairs={maxPairs}>
   {#each fields as field (field.key)}
     <div class="record-view__row" class:record-view__row--wide={field.wide}>
       <span class="record-view__key">{field.key}</span>
@@ -132,13 +139,29 @@
     }
   }
 
+  /* several pairs per row: the base data of a wide tile stops being one
+     tall column with empty space beside it. Keys stay right-aligned so each
+     pair reads as a unit; the column gap separates the pairs. */
+  @container tile (min-width: 32rem) {
+    .record-view:not([data-max-pairs="1"]) {
+      grid-template-columns: repeat(2, max-content minmax(0, 1fr));
+      column-gap: var(--space-4);
+    }
+  }
+
+  @container tile (min-width: 52rem) {
+    .record-view[data-max-pairs="3"] {
+      grid-template-columns: repeat(3, max-content minmax(0, 1fr));
+    }
+  }
+
   /* wide: keys left-aligned, tighter rows */
   @container tile (min-width: 36rem) {
     .record-view {
       row-gap: 0.125rem;
     }
 
-    .record-view__key {
+    .record-view[data-max-pairs="1"] .record-view__key {
       text-align: left;
     }
 
