@@ -27,6 +27,7 @@ and open items live in [Roadmap.md](Roadmap.md).
 - [Keymap](#keymap)
 - [Storage](#storage)
 - [Using the terminal without the dispatcher](#using-the-terminal-without-the-dispatcher)
+- [Reading components (case studies)](#reading-components-case-studies)
 - [Reference](#reference)
 
 ## Install
@@ -701,6 +702,88 @@ Instance methods: `print(text | spans, kind?, opts?)` (returns a
 `LineHandle`, see [Streaming](#streaming)), `clear()`. You can also pass an
 explicit `commands` prop to bypass the registry entirely.
 
+## Reading components (case studies)
+
+Long-form components for building in-depth project retrospectives and case
+studies. All are **container-query based** — the same markup works on a page
+and inside a tile, without viewport media queries. They discover the outline
+(table of contents) from the DOM itself, with no context API or store.
+
+### Minimal example
+
+```svelte
+<script lang="ts">
+  import { CaseStudy, Section, DeepDive, Callout, Pipeline, Prose } from "beastland";
+</script>
+
+<CaseStudy eyebrow="case study" title="Rebuilding a search indexer" tags={["search", "rust"]}
+  metrics={[{ label: "p99 staleness", value: "48s" }]}>
+  <Section id="why" number={1} title="Why">
+    <Prose text="The nightly batch took **24h** to converge." />
+    <Callout tone="warning" label="lesson">Measure before you rewrite.</Callout>
+  </Section>
+  <DeepDive id="wal" number="02.1" title="Reading the WAL" links="auto">
+    <Section id="wal-tail" level={3} title="Tailing the log">…</Section>
+  </DeepDive>
+</CaseStudy>
+```
+
+### Architecture
+
+**Heading levels are explicit props, never semantic** — pass `level={3}` to a
+`Section` to render it as an `<h3>`. `CaseStudy` is always the root (`<h1>`);
+nested `Section`s go as deep as your outline. `number` pads single-digit
+numbers (`1` → `01`); anything else (letters, ranges) renders as given.
+
+**Outline is DOM-based.** `Section`, `DeepDive`, `DecisionRecord` and
+`Pipeline` all carry the outline contract: `id`, `data-outline`,
+`data-outline-level`, `data-outline-label`, and optional `data-outline-number`
+on their root element. The `Outline` and `CaseStudy` components discover them
+with no context or store — they query the DOM. Inside a wide `CaseStudy`
+(≥64rem container) top-level section numbers hang in a left gutter so titles
+line up; everywhere else they sit inline before the title.
+
+**`Prose` handles Markdown.** Pass `text` (a Markdown string), `inline` to
+unwrap single-paragraph text, `math?: (tex, display) => string` for opt-in
+`$…$` / `$$…$$` rendering (the callback owns sanitising — e.g. a KaTeX render
+function; no dependency is added to the kit). `Markdown` gains the same `math`
+and `inline` props, plus `lang` for the root element's `lang` attribute.
+`parseMarkdown(source, { math: true })` tokenizes math when enabled.
+
+**Container queries, not viewport.** Every component uses `@container` queries
+instead of media queries, so tiles and pages use the same layout logic.
+`--reading-anchor-offset` (scroll margin on outlined sections, default `4rem`)
+and `--reading-gutter` (outline gutter width) are CSS custom properties the
+host can override.
+
+### Terminal mode (case slice)
+
+Apps register their own case components. The `cases` store holds them; the
+kit's `CaseTile` spawns them as tiles. No content ships with BeastLand.
+
+```ts
+import { cases, caseKind, caseCommands, kinds, registry } from "beastland";
+import SearchCase from "./cases/SearchCase.svelte";
+
+cases.register([
+  {
+    slug: "search",
+    title: "Rebuilding a search indexer",
+    standfirst: "24h batch → incremental indexing",
+    tags: ["search", "rust"],
+    component: SearchCase,
+  },
+]);
+kinds.register(caseKind);
+registry.register(caseCommands);
+```
+
+Readers then use:
+- `case` / `case list` — list registered cases
+- `case open <slug>` or `#<slug>` — open a case in a tile
+- `@n toc` — show the outline (active section highlighted)
+- `@n goto <id|number|title>` — jump to a section by id, number or heading
+
 ## Reference
 
 ```ts
@@ -763,7 +846,7 @@ the step-by-step for bringing your own data.
 ## Developing this repo
 
 ```bash
-npm run dev      # showcase on / , tiling experiment on /tiling
+npm run dev      # showcase on / , tiling experiment on /tiling , reading components on /reading
 npm test         # unit tests + theme contrast contract
 npm run check    # svelte-check
 npm run build    # app build + svelte-package + publint

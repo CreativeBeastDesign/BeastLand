@@ -13,16 +13,16 @@ type Props = HTMLAttributes<HTMLDivElement> & {
 	children: Snippet;
 };
 
-let { glass, active, radius, children, ...restProps }: Props = $props();
+let { glass, active, radius, children, class: className, ...restProps }: Props = $props();
 </script>
 
 <div
-  class="surface"
+  {...restProps}
+  class={["surface", className]}
   class:surface--glass={glass}
   class:surface--active={active}
   class:grain={glass}
   data-radius={radius}
-  {...restProps}
 >
 {@render children()}
 </div>

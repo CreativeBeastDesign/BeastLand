@@ -7,6 +7,8 @@
   import { worklogCommands, worklogKind, registerDocumentExtras } from "$lib/worklog/index.js";
   import { projectCommands, projectKind, registerDocumentExtras as registerProjectDocumentExtras } from "$lib/project/index.js";
   import { settingsCommands, settingsKind } from "$lib/settings/index.js";
+  import { cases, caseCommands, caseKind } from "$lib/cases/index.js";
+  import { demoCases } from "./demo-cases/index.js";
   import { demoCommands } from "./demo-commands.js";
   import TilingWorkspace from "$lib/components/organisms/TilingWorkspace.svelte";
   import { storage, toAsync, webStorage, memoryStorage, type AsyncStorageAdapter } from "$lib/shell/storage.js";
@@ -36,17 +38,22 @@
   $effect(() => registry.register(worklogCommands));
   $effect(() => registry.register(projectCommands));
   $effect(() => registry.register(settingsCommands));
+  $effect(() => registry.register(caseCommands));
   $effect(() => registry.register(demoCommands));
 
   // Register the tile kinds this route knows, then drop containers whose
   // records vanished while we were away.
   $effect(() => {
-    const unregister = [...dataKinds, worklogKind, projectKind, settingsKind].map((k) => kinds.register(k));
+    const unregister = [...dataKinds, worklogKind, projectKind, settingsKind, caseKind].map((k) => kinds.register(k));
     // prune() reads the registry; untrack so this effect doesn't subscribe to
     // the state it just wrote and loop.
     untrack(() => workspace.prune());
     return () => unregister.forEach((fn) => { fn(); });
   });
+
+  // Demo case content (see `demo-cases/`) — a consuming app registers its
+  // own `CaseEntry[]` the same way.
+  $effect(() => cases.register(demoCases));
 
   // "Logged" field on documents (see `registerDocumentExtras` for why this
   // isn't wired directly into `$lib/data/views.ts`).

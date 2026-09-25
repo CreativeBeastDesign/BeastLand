@@ -55,3 +55,14 @@
   --notification-bg: var(--color-glass);
   --notification-border: var(--color-border);
 }
+
+/* Reading */
+:root {
+  /* Scroll offset for anchored reading targets (Section/DeepDive/Disclosure
+     roots, sticky Outline bar) so a deep-linked heading doesn't land flush
+     under a sticky bar/panel. */
+  --reading-anchor-offset: 4rem;
+  /* Left gutter Section numbers hang in on wide containers; CaseStudy sets
+     this to 0 narrow / 4rem wide. */
+  --reading-gutter: 4rem;
+}

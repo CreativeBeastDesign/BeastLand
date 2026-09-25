@@ -1,5 +1,67 @@
 # Changelog
 
+## 0.7.0
+
+- Long-form case-study components for building in-depth project retrospectives.
+  All are container-query based, so the same markup works on a page and in a
+  tile. **Atoms**: `Prose` (markdown with reading rhythm, `inline`, `math`
+  callback for `$…$`/`$$…$$`). **Molecules**: `Callout` (`tone`, `label`),
+  `Disclosure` (`id`, `label`, `count`, `hint`, bindable `open`),
+  `StackManifest` (`groups: StackGroup[]`), `Metric` (`label`, `value`,
+  `detail`), `MetricGrid` (`metrics: MetricData[]`), `CaseCard` (`study:
+  CaseSummary`, `level`, `onopen`). **Organisms**: `Section` (`id`, `title`,
+  `number`, `level`, `unlisted`, `collapsible`, `open`), `DeepDive` (`id`,
+  `title`, `summary`, `eyebrow`, `number`, `level`, `links`), `DecisionRecord`
+  (`id`, `title`, `status`, `context`, `decision`, `consequences`, `gains`,
+  `costs`, `alternatives`), `Pipeline` (`title`, `entry`, `exit`, `steps`),
+  `Stepper` (`steps`, `current`, `completed`, `orientation`, `onstep`),
+  `Outline` (`entries`, `activeId`, `progress`, `ongoto`, `variant`), `Tree`
+  (`nodes`, `selected`, `onselect`), `CaseIndex` (`studies`, `level`,
+  `onopen`). **Template**: `CaseStudy` (`title`, `subtitle`, `tags`, `metrics`,
+  `eyebrow`, `outline`, `hero` snippet, `meta` snippet).
+- Shared types and pure helpers re-exported from `$lib/reading`: `MetricData`,
+  `OutlineEntry`, `StackGroup`, `PipelineStep`, `Step`, `StepState`,
+  `DecisionStatus`, `Alternative`, `TreeNode`, `CaseSummary`, `CalloutTone`,
+  `clampHeading`, `collectOutline`, `activeEntry`, `scrollProgress`,
+  `nearestScrollRoot`, `resolveSection`, `flattenTree`, `stepState`,
+  `formatSectionNumber` (pads every numeric segment: `2.1` → `02.01`; used
+  by `Section`, so headings and outlines show the same number).
+- `createOutlineSpy(getRoot)` rune helper for `CaseStudy`/`Outline`: returns
+  `{ entries, activeId, progress, goto }`. Discovers outline entries from the
+  DOM (`[data-outline]` elements), tracks active entry and reader progress via
+  a `MutationObserver` and scroll listeners. Works whether the page or a
+  containing `Tile`/`ScrollArea` scrolls.
+- Outline DOM contract: sections carry `id`, `data-outline`, `data-outline-level`,
+  `data-outline-label`, and optional `data-outline-number`. No context API —
+  outlines discover them from the DOM alone. Inside a wide `CaseStudy` (≥64rem
+  container) top-level section numbers hang in a left gutter so titles line
+  up; everywhere else they sit inline before the title.
+- `Markdown` component gains `inline` (unwrap single-paragraph text), `math:
+  (tex, display) => string` for opt-in `$…$`/`$$…$$` rendering (callback owns
+  sanitising — e.g. KaTeX; no dependency added), `lang` attribute and
+  `class`. `parseMarkdown(source, { math: true })` enables math tokenizing.
+- Terminal mode: new `$lib/cases` slice with `cases` store (`register`, `get`,
+  `slugs`, `attach`, `outline`), `caseKind` (content id scheme `case:<slug>`),
+  `caseCommands` (`case` / `case list`, `case open <slug>`, `case toc [slug]`).
+  `CaseTile` spawns them. Kind actions: `@n toc` (outline list) and `@n goto
+  <id|number|title>` (scroll to section). Apps register their own case
+  components; the kit ships no content.
+- Demo: `/reading` route showcases every reading component with placeholder
+  content; `/tiling` registers one placeholder case (`case open lorem`).
+- New CSS tokens: `--reading-anchor-offset` (scroll margin on section ids,
+  defaults to `4rem`), `--reading-gutter` (width of the outline gutter).
+- Fixed: `Surface` now merges a passed `class` with its own `surface`
+  class instead of replacing it, so `radius` (and the base radius) apply
+  when a class is given. Visible on the `/reading` demo container; Markdown
+  code fences now get their intended `radius="control"`.
+- `Outline` rows share one grid: titles start at the same x whether numbered
+  or not. The `bar` variant's popover is portalled to `<body>` and placed
+  from the bar's rect (kept in sync on scroll/resize), because a
+  `backdrop-filter` nested inside another glass element doesn't blur in
+  Chromium; it uses `--color-glass` so the blur actually shows.
+- `CaseCard` keeps a 1px border at rest and on hover, so hovering never
+  shifts the layout.
+
 ## 0.6.1
 
 - `RecordView` lays key/value pairs side by side on wide tiles instead of

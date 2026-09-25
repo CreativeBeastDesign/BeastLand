@@ -138,6 +138,32 @@ export { default as LookPicker } from "$lib/components/molecules/LookPicker.svel
 export { default as Markdown } from "$lib/components/molecules/Markdown.svelte";
 export { parseMarkdown } from "$lib/markdown/parse.js";
 export { splitRefs, isRunnableFence, type TextPart, type RefPart } from "$lib/markdown/refs.js";
+
+// Reading (long-form / case study)
+export { default as Prose } from "$lib/components/atoms/Prose.svelte";
+export { default as Callout } from "$lib/components/molecules/Callout.svelte";
+export { default as Disclosure } from "$lib/components/molecules/Disclosure.svelte";
+export { default as StackManifest } from "$lib/components/molecules/StackManifest.svelte";
+export { default as Metric } from "$lib/components/molecules/Metric.svelte";
+export { default as MetricGrid } from "$lib/components/molecules/MetricGrid.svelte";
+export { default as CaseCard } from "$lib/components/molecules/CaseCard.svelte";
+export { default as Section } from "$lib/components/organisms/Section.svelte";
+export { default as DeepDive } from "$lib/components/organisms/DeepDive.svelte";
+export { default as DecisionRecord } from "$lib/components/organisms/DecisionRecord.svelte";
+export { default as Pipeline } from "$lib/components/organisms/Pipeline.svelte";
+export { default as Stepper } from "$lib/components/organisms/Stepper.svelte";
+export { default as Outline } from "$lib/components/organisms/Outline.svelte";
+export { default as Tree } from "$lib/components/organisms/Tree.svelte";
+export { default as CaseIndex } from "$lib/components/organisms/CaseIndex.svelte";
+export { default as CaseStudy } from "$lib/components/templates/CaseStudy.svelte";
+export * from "$lib/reading/index.js";
+export { createOutlineSpy } from "$lib/actions/outlineSpy.svelte.js";
+
+// Cases (terminal mode for reading components)
+export { default as CaseTile } from "$lib/components/tiles/CaseTile.svelte";
+export { cases, caseKind, caseCommands } from "$lib/cases/index.js";
+export type { CaseEntry, CaseOutlineHandle } from "$lib/cases/index.js";
+
 // Stylesheets are imported separately by the consumer, in this order:
 //   $lib/styles/fonts.css               Illinois Mono @font-face (Lexend comes from Google Fonts)
 //   $lib/styles/tokens/base.css

@@ -146,3 +146,54 @@ describe("parseMarkdown", () => {
     expect(code.lang).toBe("");
   });
 });
+
+describe("parseMarkdown math (opt-in via { math: true })", () => {
+  it("leaves $…$ as literal text when math is not requested", () => {
+    const tokens = parseMarkdown("cost is $5 and $10\n");
+    const paragraph = tokens[0] as Tokens.Paragraph;
+    expect(paragraph.tokens.map((t) => t.type)).toEqual(["text"]);
+    expect((paragraph.tokens[0] as Tokens.Text).text).toBe("cost is $5 and $10");
+  });
+
+  it("leaves $…$ as literal text even with { math: true } when it looks like currency", () => {
+    // "$5 and $10": the second "$" has a space right before it, so it can
+    // never close a math run that started at the first "$".
+    const tokens = parseMarkdown("cost is $5 and $10\n", { math: true });
+    const paragraph = tokens[0] as Tokens.Paragraph;
+    expect(paragraph.tokens.some((t) => t.type === "mathInline")).toBe(false);
+  });
+
+  it("tokenizes inline math as a mathInline token", () => {
+    const tokens = parseMarkdown("Euler's identity is $e^{i\\pi}+1=0$ neat.\n", { math: true });
+    const paragraph = tokens[0] as Tokens.Paragraph;
+    const math = paragraph.tokens.find((t) => t.type === "mathInline") as unknown as {
+      type: string;
+      tex: string;
+    };
+    expect(math).toBeDefined();
+    expect(math.tex).toBe("e^{i\\pi}+1=0");
+  });
+
+  it("tokenizes a $$…$$ block as a mathBlock token", () => {
+    const tokens = parseMarkdown("intro\n\n$$\nx = y\n$$\n\nend\n", { math: true });
+    const block = (tokens as { type: string }[]).find((t) => t.type === "mathBlock") as unknown as {
+      type: string;
+      tex: string;
+    };
+    expect(block).toBeDefined();
+    expect(block.tex).toBe("x = y");
+  });
+
+  it("tokenizes a same-line $$…$$ block", () => {
+    const tokens = parseMarkdown("$$x = y$$\n", { math: true });
+    const block = tokens[0] as unknown as { type: string; tex: string };
+    expect(block.type).toBe("mathBlock");
+    expect(block.tex).toBe("x = y");
+  });
+
+  it("does not tokenize $…$ as math when the opening $ is followed by a space", () => {
+    const tokens = parseMarkdown("a $ b$ c\n", { math: true });
+    const paragraph = tokens[0] as Tokens.Paragraph;
+    expect(paragraph.tokens.some((t) => t.type === "mathInline")).toBe(false);
+  });
+});

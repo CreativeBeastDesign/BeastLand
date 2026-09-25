@@ -36,6 +36,13 @@
 
   export type HighlightSpan = { text: string; tone?: string };
 
+  /** A `$…$`/`$$…$$` token — only produced when `math` is passed to `parseMarkdown`. */
+  type MathToken = { type: "mathBlock" | "mathInline"; raw: string; tex: string };
+
+  /** Every token `blockToken`/`inlineToken` may see: real marked tokens, plus
+   * the two math tokens `parseMarkdown(source, { math: true })` adds. */
+  type RenderToken = MarkedToken | MathToken;
+
   type Props = {
     source: string;
     /** Activated by a ref click/⇧-click and by a runnable fence line. Absent
@@ -51,11 +58,50 @@
      * with their reason and carry no command.
      */
     validateLine?: (line: string) => LineVerdict;
+    /**
+     * Render only inline content: when `source` lexes to a single paragraph,
+     * its inline tokens render without the block `<p>` wrapper and the root
+     * becomes a `<span>` instead of a `<div>`. Source that lexes to more than
+     * one block still renders those blocks in full — inline mode never loses
+     * content, it only unwraps the single-paragraph case.
+     */
+    inline?: boolean;
+    /**
+     * Renders `$…$` (inline) / `$$…$$` (block) math — tokenized by
+     * `parseMarkdown(source, { math: true })` — through this callback and
+     * `{@html}`. This is the ONLY `{@html}` in this file; the callback owns
+     * sanitising its output (e.g. a KaTeX render function). Without `math`,
+     * `$…$` stays literal text — no dependency on a math renderer is added
+     * here.
+     */
+    math?: (tex: string, display: boolean) => string;
+    /** Sets `lang` on the root element (e.g. hyphenated German prose). */
+    lang?: string;
+    class?: string;
   };
 
-  let { source, oncommand, highlight, compact = false, validateLine }: Props = $props();
+  let {
+    source,
+    oncommand,
+    highlight,
+    compact = false,
+    validateLine,
+    inline = false,
+    math,
+    lang,
+    class: className,
+  }: Props = $props();
 
-  let tokens = $derived(parseMarkdown(source));
+  let tokens = $derived(parseMarkdown(source, { math: !!math }));
+
+  // Inline mode only unwraps a *single* paragraph — multi-block source (a
+  // heading, a list, two paragraphs…) always renders as full blocks so
+  // nothing is silently dropped.
+  let inlineTokens = $derived(
+    inline && tokens.length === 1 && tokens[0].type === "paragraph"
+      ? asTokens((tokens[0] as Tokens.Paragraph).tokens)
+      : undefined,
+  );
 
   function activate(event: MouseEvent, command: string) {
     event.stopPropagation(); // don't also select the tile
@@ -116,13 +162,13 @@
   {/each}
 {/snippet}
 
-{#snippet inlineList(list: MarkedToken[])}
+{#snippet inlineList(list: RenderToken[])}
   {#each list as token, i (i)}
     {@render inlineToken(token)}
   {/each}
 {/snippet}
 
-{#snippet inlineToken(token: MarkedToken)}
+{#snippet inlineToken(token: RenderToken)}
   {#if token.type === "text"}
     {#if token.tokens && token.tokens.length > 0}
       {@render inlineList(asTokens(token.tokens))}
@@ -161,6 +207,8 @@
     </a>
   {:else if token.type === "html"}
     {token.raw}
+  {:else if (token.type === "mathBlock" || token.type === "mathInline") && math}
+    <span class="markdown__math">{@html math(token.tex, token.type === "mathBlock")}</span>
   {/if}
 {/snippet}
 
@@ -206,13 +254,13 @@
   </li>
 {/snippet}
 
-{#snippet blockList(list: MarkedToken[])}
+{#snippet blockList(list: RenderToken[])}
   {#each list as token, i (i)}
     {@render blockToken(token)}
   {/each}
 {/snippet}
 
-{#snippet blockToken(token: MarkedToken)}
+{#snippet blockToken(token: RenderToken)}
   {#if token.type === "heading"}
     {@const depth = Math.min(Math.max(token.depth, 1), 4)}
     <svelte:element this={`h${depth}`} class="markdown__heading markdown__heading--{depth}"
@@ -268,6 +316,10 @@
       {#if lang}<span class="markdown__fence-lang">{lang}</span>{/if}
       <pre class="markdown__fence-pre"><code class="markdown__fence-code">{@render fenceBody(token, lang)}</code></pre>
     </Surface>
+  {:else if (token.type === "mathBlock" || token.type === "mathInline") && math}
+    <p class="markdown__p">
+      <span class="markdown__math">{@html math(token.tex, token.type === "mathBlock")}</span>
+    </p>
   {:else if token.type === "space" || token.type === "def" || token.type === "html"}
     <!-- space: layout only, nothing to render. def: a link/image reference
          definition, already resolved into the link/image tokens that use
@@ -275,9 +327,18 @@
   {/if}
 {/snippet}
 
-<div class="markdown" class:markdown--compact={compact}>
-  {@render blockList(tokens)}
-</div>
+{#if inlineTokens}
+  <span
+    class={["markdown", "markdown--inline", compact && "markdown--compact", className].filter(Boolean).join(" ")}
+    {lang}
+  >
+    {@render inlineList(inlineTokens)}
+  </span>
+{:else}
+  <div class={["markdown", compact && "markdown--compact", className].filter(Boolean).join(" ")} {lang}>
+    {@render blockList(tokens)}
+  </div>
+{/if}
 
 <style>
   .markdown {
@@ -299,6 +360,16 @@
 
   .markdown--compact > :global(*) {
     margin-bottom: var(--space-2);
+  }
+
+  /* Inline mode: same type ramp, but a `<span>` in the flow of the
+     surrounding text instead of a block-level column. */
+  .markdown--inline {
+    display: inline;
+    font-family: var(--font-ui);
+    font-size: var(--text-sm);
+    line-height: 1.6;
+    color: var(--color-text-med);
   }
 
   /* --- Headings --- */
@@ -329,6 +400,13 @@
   /* --- Paragraph & inline --- */
   .markdown__p {
     margin: 0;
+    hyphens: auto;
+  }
+
+  /* Sanitisation is the `math` callback's responsibility (see the Props
+     doc comment) — this is purely layout for whatever it hands back. */
+  .markdown__math {
+    color: inherit;
   }
 
   .markdown__strong {
