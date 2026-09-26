@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { activeEntry, collectOutline, nearestScrollRoot, resolveSection, scrollProgress } from "../src/lib/reading/outline.js";
+import {
+  activeEntry,
+  collectOutline,
+  nearestScrollRoot,
+  resolveSection,
+  scrollProgress,
+  sectionProgress,
+} from "../src/lib/reading/outline.js";
 
 describe("activeEntry", () => {
   it("returns null for an empty list", () => {
@@ -61,6 +68,57 @@ describe("scrollProgress", () => {
 
   it("is 0 when there's nothing to scroll (content fits)", () => {
     expect(scrollProgress(0, 400, 500)).toBe(0);
+  });
+});
+
+describe("sectionProgress", () => {
+  const entries = [
+    { id: "a", top: 0 },
+    { id: "b", top: 200 },
+    { id: "c", top: 500 },
+  ];
+
+  it("is 0 when there's no active entry", () => {
+    expect(sectionProgress(entries, null, 50, 1000)).toBe(0);
+  });
+
+  it("is 0 when the active id isn't found", () => {
+    expect(sectionProgress(entries, "nope", 50, 1000)).toBe(0);
+  });
+
+  it("is 0 for an empty entry list", () => {
+    expect(sectionProgress([], "a", 50, 1000)).toBe(0);
+  });
+
+  it("is proportional within a middle entry's span", () => {
+    // "b" spans 200 -> 500 (next entry's top); threshold 350 is halfway.
+    expect(sectionProgress(entries, "b", 350, 1000)).toBeCloseTo(0.5);
+  });
+
+  it("is 0 at the top of the active entry's span", () => {
+    expect(sectionProgress(entries, "b", 200, 1000)).toBe(0);
+  });
+
+  it("uses the entry's own top -> next entry's top for a non-last entry", () => {
+    expect(sectionProgress(entries, "a", 100, 1000)).toBeCloseTo(0.5);
+  });
+
+  it("uses endTop as the span end for the last entry", () => {
+    // "c" spans 500 -> endTop (1000); threshold 750 is halfway.
+    expect(sectionProgress(entries, "c", 750, 1000)).toBeCloseTo(0.5);
+  });
+
+  it("clamps below the span (negative) and above it (> 1)", () => {
+    expect(sectionProgress(entries, "b", -1000, 1000)).toBe(0);
+    expect(sectionProgress(entries, "b", 10000, 1000)).toBe(1);
+  });
+
+  it("is 0 when the span is zero or negative (guards divide-by-zero)", () => {
+    const collapsed = [
+      { id: "a", top: 100 },
+      { id: "b", top: 100 },
+    ];
+    expect(sectionProgress(collapsed, "a", 100, 1000)).toBe(0);
   });
 });
 

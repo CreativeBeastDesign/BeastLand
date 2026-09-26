@@ -52,6 +52,36 @@ export function scrollProgress(scrollTop: number, scrollHeight: number, clientHe
 }
 
 /**
+ * Fraction in `[0, 1]` of how far `threshold` has moved through the active
+ * entry's span — from its `top` to the next entry's `top` in document order,
+ * or to `endTop` (the bottom of the article root) for the last entry. This
+ * is "section-mapped" progress: unlike `scrollProgress` (which is uniform
+ * over pixels), it resets per section regardless of how long that section
+ * is, so a rail's fill/marker stay aligned with the active entry even when
+ * sections have very different lengths.
+ *
+ * `0` when `activeId` is `null` or not found. Clamps a zero/negative or
+ * out-of-range span.
+ */
+export function sectionProgress(
+  entries: { id: string; top: number }[],
+  activeId: string | null,
+  threshold: number,
+  endTop: number,
+): number {
+  if (activeId === null) return 0;
+  const index = entries.findIndex((entry) => entry.id === activeId);
+  if (index === -1) return 0;
+
+  const start = entries[index].top;
+  const end = index + 1 < entries.length ? entries[index + 1].top : endTop;
+  const span = end - start;
+  if (span <= 0) return 0;
+
+  return Math.min(1, Math.max(0, (threshold - start) / span));
+}
+
+/**
  * First ancestor of `node` with overflow-y auto|scroll, or `null` when none
  * is found (meaning the window itself is the scroll root). Deliberately does
  * not require the ancestor to overflow *yet*: a tile whose content arrives

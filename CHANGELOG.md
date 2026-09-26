@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.1
+
+- Rail `Outline` drops the vertical progress track: its fill (page-uniform)
+  drifted away from the active marker whenever sections had very different
+  lengths. The rail now shows the active marker (where you are) plus a thin
+  page-progress line under its title (how much of the page you have read).
+- New pure helper `sectionProgress` in `$lib/reading/outline` and
+  `spy.sectionProgress` on `createOutlineSpy`: the fraction scrolled through
+  the active entry's own span, for custom outlines.
+
 ## 0.8.0
 
 - New `Benchmark` organism: small multiples comparing build variants across

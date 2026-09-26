@@ -741,6 +741,11 @@ numbers (`1` → `01`); anything else (letters, ranges) renders as given.
 on their root element. The `Outline` and `CaseStudy` components discover them
 with no context or store — they query the DOM.
 
+The rail `Outline` shows two things: the active entry's marker (where you
+are) and a thin line under its title (how much of the page you have read).
+`createOutlineSpy` also exposes `sectionProgress`, the fraction scrolled
+through the active entry's own span, for custom outlines that want it.
+
 **One shared gutter, one content edge.** Inside a wide `CaseStudy` (≥64rem
 container) `CaseStudy` reserves a single left gutter (`--reading-gutter`, set
 to `--reading-gutter-wide` — `9rem` by default) that both its header and body

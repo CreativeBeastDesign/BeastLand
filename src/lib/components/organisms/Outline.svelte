@@ -86,21 +86,23 @@
 {#if variant === "rail"}
   <nav class={["outline", "outline--rail", className].filter(Boolean).join(" ")} aria-label={title}>
     <p class="outline__title">// {title}</p>
-    <div class="outline__body">
-      <div class="outline__track" aria-hidden="true">
-        <span class="outline__track-fill" style={`--outline-progress: ${progress}`}></span>
-      </div>
-      <ol class="outline__list">
-        {#each entries as entry (entry.id)}
-          <li class="outline__item" data-level={entry.level} class:outline__item--active={entry.id === activeId}>
-            <a class="outline__link" href={`#${entry.id}`} onclick={(event) => select(event, entry.id)}>
-              <span class="outline__number">{entry.number ?? ""}</span>
-              <span class="outline__label">{entry.label}</span>
-            </a>
-          </li>
-        {/each}
-      </ol>
+    <div class="outline__page-progress" aria-hidden="true">
+      <span class="outline__page-progress-fill" style={`--outline-progress: ${progress}`}></span>
     </div>
+    <ol class="outline__list">
+      {#each entries as entry (entry.id)}
+        <li
+          class="outline__item"
+          data-level={entry.level}
+          class:outline__item--active={entry.id === activeId}
+        >
+          <a class="outline__link" href={`#${entry.id}`} onclick={(event) => select(event, entry.id)}>
+            <span class="outline__number">{entry.number ?? ""}</span>
+            <span class="outline__label">{entry.label}</span>
+          </a>
+        </li>
+      {/each}
+    </ol>
   </nav>
 {:else}
   <nav
@@ -163,32 +165,27 @@
   }
 
   .outline__title {
-    margin: 0 0 var(--space-3);
+    margin: 0 0 var(--space-2);
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     letter-spacing: 0.04em;
     color: var(--color-text-low);
   }
 
-  .outline__body {
-    display: flex;
-    gap: var(--space-3);
-  }
-
-  .outline__track {
-    flex-shrink: 0;
-    width: 1px;
+  /* Page-read progress (rail): how much of the whole article has scrolled
+     by. Where the reader is comes from the active entry's marker. */
+  .outline__page-progress {
+    height: 1px;
+    margin: 0 0 var(--space-3);
     background: var(--color-border-subtle);
-    border-radius: var(--radius-pill);
   }
 
-  .outline__track-fill {
+  .outline__page-progress-fill {
     display: block;
-    width: 100%;
-    height: calc(var(--outline-progress, 0) * 100%);
+    height: 100%;
+    width: calc(var(--outline-progress, 0) * 100%);
     background: var(--color-accent);
-    border-radius: var(--radius-pill);
-    transition: height var(--duration-fast) var(--ease-out);
+    transition: width var(--duration-fast) var(--ease-out);
   }
 
   /* One grid for all rows (items and links are subgrids): the number
@@ -340,9 +337,9 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .outline__track-fill,
     .outline__bar-chevron,
-    .outline__bar-progress-fill {
+    .outline__bar-progress-fill,
+    .outline__page-progress-fill {
       transition: none;
     }
   }

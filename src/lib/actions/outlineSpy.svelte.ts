@@ -13,14 +13,20 @@
  * component's `$effect` (so it tears down on unmount) and read directly:
  *
  *   const spy = createOutlineSpy(() => bodyEl);
- *   // spy.entries, spy.activeId, spy.progress, spy.goto(id)
+ *   // spy.entries, spy.activeId, spy.progress, spy.sectionProgress, spy.goto(id)
  *
  * SSR-safe: every DOM access is deferred to the `$effect` that only runs in
  * the browser.
  */
 
 import { untrack } from "svelte";
-import { activeEntry, collectOutline, nearestScrollRoot, scrollProgress } from "$lib/reading/outline.js";
+import {
+  activeEntry,
+  collectOutline,
+  nearestScrollRoot,
+  scrollProgress,
+  sectionProgress as computeSectionProgress,
+} from "$lib/reading/outline.js";
 import type { OutlineEntry } from "$lib/reading/types.js";
 import { scrollBehavior } from "./motion.js";
 
@@ -52,6 +58,7 @@ export function createOutlineSpy(getRoot: () => HTMLElement | undefined) {
   let entries = $state<OutlineEntry[]>([]);
   let activeId = $state<string | null>(null);
   let progress = $state(0);
+  let sectionProgressValue = $state(0);
 
   function setup(root: HTMLElement) {
     const scrollRoot: ScrollTarget = nearestScrollRoot(root) ?? window;
@@ -75,6 +82,18 @@ export function createOutlineSpy(getRoot: () => HTMLElement | undefined) {
       if (atBottom && scrollTopOf(scrollRoot) > 0) {
         const visible = tops.filter((t) => t.top < viewportHeight(scrollRoot));
         if (visible.length > 0) activeId = visible[visible.length - 1].id;
+      }
+
+      // Section-mapped progress: how far the threshold line has moved
+      // through the active entry's own span, using the same viewport-
+      // relative tops/threshold as `activeId` above. `endTop` is the
+      // article root's bottom edge, relative to the scroll root's view top
+      // (same basis as `tops`), so the last entry's span reaches it.
+      if (atBottom && scrollTopOf(scrollRoot) > 0) {
+        sectionProgressValue = 1;
+      } else {
+        const endTop = root.getBoundingClientRect().bottom - viewTop;
+        sectionProgressValue = computeSectionProgress(tops, activeId, threshold, endTop);
       }
 
       // Progress over the root element's own extent (not the scroll root's).
@@ -165,6 +184,9 @@ export function createOutlineSpy(getRoot: () => HTMLElement | undefined) {
     },
     get progress(): number {
       return progress;
+    },
+    get sectionProgress(): number {
+      return sectionProgressValue;
     },
     goto,
     destroy,
