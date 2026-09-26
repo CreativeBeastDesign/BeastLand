@@ -28,21 +28,25 @@
 </script>
 
 {#snippet cardBody()}
-  {#if study.tags.length > 0}
-    <ul class="case-card__tags">
-      {#each study.tags as tag (tag)}
-        <li class="case-card__tag">#{tag}</li>
-      {/each}
-    </ul>
-  {/if}
+  <!-- Tags and metric are always rendered — even with zero tags or no
+       metric at all — so each is one row of the card's 5-row grid. Inside
+       `CaseIndex`, the grid rows are subgridded up to the shared index grid
+       (see CaseIndex.svelte), so an empty row here still holds its row's
+       place and everything below (title, standfirst, footer) lines up with
+       the other cards in the same visual row. -->
+  <ul class="case-card__tags">
+    {#each study.tags as tag (tag)}
+      <li class="case-card__tag">#{tag}</li>
+    {/each}
+  </ul>
   <svelte:element this={`h${level}`} class="case-card__title">{study.title}</svelte:element>
   <p class="case-card__standfirst">{study.standfirst}</p>
-  {#if study.metric}
-    <div class="case-card__metric">
+  <div class="case-card__metric">
+    {#if study.metric}
       <span class="case-card__metric-value">{study.metric.value}</span>
       <span class="case-card__metric-label">{study.metric.label}</span>
-    </div>
-  {/if}
+    {/if}
+  </div>
   <p class="case-card__footer">open →</p>
 {/snippet}
 
@@ -91,7 +95,12 @@
     list-style: none;
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-1);
+    /* In CaseIndex the tag row is a shared subgrid track sized by the card
+       with the most tag lines; pack lines at the top instead of letting a
+       wrapping flex container spread them over the extra height. */
+    align-content: flex-start;
+    align-self: start;
+    gap: 0.15rem var(--space-2);
     margin: 0;
     padding: 0;
   }
@@ -175,5 +184,20 @@
     .case-card {
       transition: none;
     }
+  }
+
+  /* Inside `CaseIndex` only: swap the standalone flex column for a subgrid
+     spanning the index's 5 row-tracks (see CaseIndex.svelte), so this
+     card's tags/title/standfirst/metric/footer align with every other
+     card in the same visual row. `gap` (already set above) becomes the
+     override for the *internal* row gaps this card spans — the gap
+     *between* card rows stays the index grid's own, since that boundary
+     isn't part of any single card's span. A standalone `CaseCard` (no
+     `.case-index__item` ancestor) never matches this selector and keeps
+     rendering as the plain flex column above. */
+  :global(.case-index__item) > .case-card {
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-row: span 5;
   }
 </style>

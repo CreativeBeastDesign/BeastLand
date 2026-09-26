@@ -15,6 +15,8 @@ export type {
   TreeNode,
   CaseSummary,
   CalloutTone,
+  BenchmarkVariant,
+  BenchmarkMetric,
 } from "./types.js";
 export { clampHeading } from "./types.js";
 
@@ -24,3 +26,4 @@ export { flattenTree } from "./tree.js";
 
 export { stepState } from "./steps.js";
 export { formatSectionNumber } from "./numbers.js";
+export { linearScale, logScale, metricScale, isNumericMetric, formatValue, factTone, type ScaleFn } from "./benchmark.js";

@@ -62,7 +62,38 @@
      roots, sticky Outline bar) so a deep-linked heading doesn't land flush
      under a sticky bar/panel. */
   --reading-anchor-offset: 4rem;
-  /* Left gutter Section numbers hang in on wide containers; CaseStudy sets
-     this to 0 narrow / 4rem wide. */
-  --reading-gutter: 4rem;
+  /* Left gutter Section numbers (and StackManifest keys) hang in on wide
+     containers. Unset by default (falls back to 0 via `var(--reading-gutter,
+     0px)` everywhere it's read) — only `CaseStudy` sets it, to 0px narrow /
+     `--reading-gutter-wide` wide, so the hang only ever applies inside a
+     wide CaseStudy, never to a `Section`/`StackManifest` used elsewhere. */
+  --reading-gutter-wide: 9rem;
+  /* Extra inline inset a nesting container (e.g. `DeepDive`'s glass panel)
+     adds inside the content column — its own padding + border. Hanging
+     elements add this to `--reading-gutter` so they still reach the shared
+     gutter from inside the panel. Composed (not replaced) by nested
+     containers: `--reading-inset: calc(var(--reading-inset, 0px) + …)`. */
+  --reading-inset: 0px;
+
+  /* Prose/Markdown reading typography — the comfortable rhythm for long-form
+     body copy (Prose blocks, and Markdown outside `compact`). Sized off
+     --text-base rather than hardcoded rem values so a themed root font-size
+     still scales reading text proportionally. */
+  --reading-measure: 66ch;
+  --reading-size: calc(var(--text-base) * 1.0625);
+  --reading-leading: 1.7;
+  --reading-paragraph-gap: 0.9em;
+  /* Body sits between --color-text-high and --color-text-med: less harsh
+     than full-med grey, but not shouting like high (reserved for strong/
+     headings). color-mix keeps it token-driven; it never drops below
+     --color-text-med's own contrast floor, which the theme-contract test
+     already guarantees for every theme. */
+  --reading-body-color: color-mix(in oklab, var(--color-text-high) 78%, var(--color-text-med));
+  --reading-strong-color: var(--color-text-high);
+  /* Light body, medium bold: Lexend 300 reads calmer at reading size, and
+     500 keeps bold as emphasis instead of a shout. The app must load these
+     cuts (Google Fonts `wght@300;500`); 200 works too if loaded, but gets
+     hairline-thin on dark glass. */
+  --reading-weight: 300;
+  --reading-strong-weight: 500;
 }

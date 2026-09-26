@@ -116,18 +116,54 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    overflow: hidden;
+    /* No `overflow: hidden` here (there used to be one, just to clip the
+       gradient hairline below to the rounded corners): a hung section
+       number inside this panel needs to render past its left edge, into
+       the shared gutter, and `overflow: hidden` would clip it off. The
+       hairline gets its own matching corner radius instead. */
   }
 
-  /* Gradient top hairline — signature Hyprland accent -> secondary treatment. */
+  /* The panel's own padding + border eat into the content column, so section
+     numbers hanging inside it (its own title Section, and any nested
+     Sections in `.deep-dive__body`) need to reach further to land in the
+     same gutter. Set on the direct children, not `.deep-dive` itself, so it
+     doesn't clobber a value already inherited from further up.
+
+     This does NOT compose across nested DeepDives (`var(--reading-inset,
+     0px) + …` here would be a self-reference cycle — CSS's cyclic-reference
+     rule fires for *any* declaration of a custom property that reads that
+     same property, even one matched via a descendant/child selector rather
+     than the exact element, so it can't add to an inherited value this way;
+     verified empirically, browser computes the whole declaration as
+     guaranteed-invalid). One level — the one case this component actually
+     has — works correctly; a DeepDive nested inside another would need a
+     second, differently-named inset variable to compose properly. */
+  .deep-dive > :global(*) {
+    --reading-inset: calc(var(--space-5) + var(--border-width, 1px));
+  }
+
+  /* Gradient top hairline — signature Hyprland accent -> secondary treatment.
+     It follows the panel's rounded corners without needing `overflow:
+     hidden` on the panel (which would clip hung section numbers). */
   .deep-dive::before {
     content: "";
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--gradient-brand);
+    /* Cover the panel's border box exactly (absolute insets start at the
+       padding box, so step out by the border width) and take its radius. */
+    inset: calc(-1 * var(--border-width, 1px));
+    border-radius: inherit;
+    /* A gradient *top border* rather than a 2px strip: a border follows the
+       rounded corners and tapers into the sides like the panel's own border.
+       The mask keeps only the border area (border-box minus padding-box). */
+    border-top: 2px solid transparent;
+    /* Paint the (45°) brand gradient only over a band as tall as the corner
+       curve, so the top edge runs the full pink → teal range instead of the
+       sliver a gradient spanning the whole panel height would show. */
+    background: var(--gradient-brand) top / 100% calc(var(--radius-window) + 2px) no-repeat border-box;
+    mask:
+      linear-gradient(#000 0 0) padding-box exclude,
+      linear-gradient(#000 0 0) border-box;
+    pointer-events: none;
   }
 
   .deep-dive__eyebrow {

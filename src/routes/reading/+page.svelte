@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     Surface, CaseStudy, CaseIndex, Section, DeepDive, DecisionRecord, Pipeline,
-    Disclosure, Stepper, Callout, Tree, Prose, StackManifest,
+    Disclosure, Stepper, Callout, Tree, Prose, StackManifest, Benchmark, Markdown,
     type CalloutTone,
   } from "$lib/index.js";
 
@@ -14,7 +14,10 @@
     decisionCosts,
     decisionAlternatives,
     steps,
+    rolloutSteps,
     treeNodes,
+    benchmarkVariants,
+    benchmarkMetrics,
   } from "./data.js";
 
   // Trivial placeholder math renderer: no katex dependency, just escapes the
@@ -33,6 +36,37 @@
   }
 
   let currentStep = $state("shadow");
+
+  // Placeholder long-form body copy (German) exercising the reading
+  // typography: three paragraphs, **bold**, one *em*, inline `code`, a link.
+  const readingProseDe = `Die Umstellung auf die inkrementelle Pipeline war kein einzelner Schnitt, sondern eine **schrittweise Ablösung** des nächtlichen Batch-Jobs über mehrere Wochen hinweg, begleitet von Kennzahlen, die jede Etappe bestätigten, bevor die nächste begann.
+
+Am schwierigsten war *nicht* die Indexierungslogik selbst, sondern die Frage, wie sich der Konsum des Write-Ahead-Logs sicher fortsetzen lässt, ohne Ereignisse doppelt zu verarbeiten. Die Lösung dedupliziert auf \`(table, pk, xid)\`, bevor ein Schreibvorgang den Index erreicht.
+
+Weitere Details zur Umstellung und den Alternativen, die wir verworfen haben, stehen im [Decision Record](#decision-incremental) weiter oben — inklusive der Kennzahlen, die den Ausschlag gegeben haben.`;
+
+  // Placeholder benchmark table, five numeric columns — wide enough to
+  // overflow a narrow container and exercise the horizontal scroll/fade.
+  const readingTableMd = `| Variant | p50 (ms) | p99 (ms) | Memory (MB) | CPU (%) | Cost ($/mo) |
+| --- | --- | --- | --- | --- | --- |
+| pokkum | 4.2 | 18.6 | 96 | 12 | 38 |
+| baseline-a | 6.1 | 31.4 | 140 | 19 | 61 |
+| baseline-b | 5.8 | 27.9 | 128 | 17 | 54 |
+| baseline-c | 9.3 | 44.2 | 210 | 26 | 89 |`;
+
+  // Bullet + numbered lists exercising the marker-column layout: long
+  // wrapping items (so a wrapped line's alignment under the item's own
+  // text, not the marker, is visible), one nested level per list, and an
+  // inline code token near a line end (the `hyphens`/`overflow-wrap` fix).
+  const readingListsMd = `- The connector retries a failed WAL read up to five times with exponential backoff before it escalates to the on-call rotation and pages whoever is holding the pager that week
+- Backfills run nightly against the same replication slot the tailer uses, just far enough behind that a backfill batch never races a live write from the tailer
+   - Nested: a backfill batch is capped at 5,000 rows so it never holds the slot open long enough to block the tailer sitting behind it
+- See the incident write-ups this section was distilled from in \`Lessons.md\`
+
+1. Cut read traffic over for the lowest-risk tenant first, watching shadow-query diffs for a full week before touching anything else in the fleet
+2. Roll forward one tenant tier at a time, smallest catalog to largest, so a regression only ever affects the tier currently mid-migration
+   1. Nested: every tier gets its own dashboard rather than a shared one, so a spike in tier three can't hide a smaller regression in tier one
+3. Decommission the nightly full rebuild once every tenant has run the incremental path for two weeks with zero shadow-diff mismatches`;
 
   const calloutTones: { tone: CalloutTone; label: string; text: string }[] = [
     { tone: "neutral", label: "note", text: "This case study uses placeholder company and system names throughout." },
@@ -56,7 +90,7 @@
       One fictional, placeholder case study exercising every reading component: <code>Prose</code>,
       <code>Callout</code>, <code>Disclosure</code>, <code>StackManifest</code>, <code>Metric</code>/<code>MetricGrid</code>,
       <code>CaseCard</code>, <code>Section</code>, <code>DeepDive</code>, <code>DecisionRecord</code>, <code>Pipeline</code>,
-      <code>Stepper</code>, <code>Outline</code>, <code>Tree</code>, <code>CaseIndex</code> and <code>CaseStudy</code>.
+      <code>Benchmark</code>, <code>Stepper</code>, <code>Outline</code>, <code>Tree</code>, <code>CaseIndex</code> and <code>CaseStudy</code>.
     </p>
   </header>
 
@@ -82,7 +116,8 @@
     metrics={[
       { label: "p99 staleness", value: "48s", detail: "was 24h" },
       { label: "reindex time", value: "40m", detail: "was 6h" },
-      { label: "on-call pages", value: "-100%", detail: "for staleness" },
+      { label: "verification", value: "Bit-for-bit", detail: "shadow-query diff against the old index, replayed nightly for three weeks before cutover" },
+      { label: "on-call pages", value: "0", detail: "for staleness" },
     ]}
   >
     {#snippet hero()}
@@ -91,6 +126,7 @@
 
     {#snippet meta()}
       <StackManifest groups={stackGroups} />
+      <Stepper steps={rolloutSteps} orientation="horizontal" current="shadow" completed={["discovery", "design"]} label="Rollout" />
     {/snippet}
 
     <Section id="background" number="01" title="Why the nightly batch had to go">
@@ -132,12 +168,23 @@
       </Disclosure>
     </Section>
 
-    <Section id="repo-layout" number="03" title="Repository layout">
+    <Section id="build-variants" number="03" title="Build variants compared">
+      <Prose text="The same service, built four ways. `pokkum` is this project's own tool — every other column is a baseline it's being measured against." />
+      <Benchmark
+        title="build variants compared"
+        variants={benchmarkVariants}
+        metrics={benchmarkMetrics}
+        highlight="pokkum"
+        caption="Placeholder numbers for a fictional service image. Image size uses a log scale — 1.1GB and 138MB would otherwise barely differ on screen."
+      />
+    </Section>
+
+    <Section id="repo-layout" number="04" title="Repository layout">
       <Prose text="The pipeline lives in its own crate alongside the existing monolith, so it can be deployed and rolled back independently." />
       <Tree nodes={treeNodes} label="search-indexer repository" />
     </Section>
 
-    <Section id="results" number="04" title="Results and lessons" collapsible open={false}>
+    <Section id="results" number="05" title="Results and lessons" collapsible open={false}>
       <Prose text="Nine weeks after the design doc, the incremental pipeline was serving 100% of production reads. A summary of what we gained, what it cost, and what we'd considered instead follows below." />
 
       <div class="callout-grid">
@@ -159,6 +206,13 @@
         alternatives={decisionAlternatives}
         unlisted={false}
       />
+
+      <!-- Reading typography demo: a full Prose block (German placeholder,
+           `lang="de"` for hyphenation) and a Markdown table wide enough to
+           overflow a narrow container. -->
+      <Prose text={readingProseDe} lang="de" />
+      <Markdown source={readingTableMd} />
+      <Markdown source={readingListsMd} />
     </Section>
   </CaseStudy>
   </Surface>

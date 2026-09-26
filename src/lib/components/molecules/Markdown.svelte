@@ -33,6 +33,7 @@
   import type { MarkedToken, Token, Tokens } from "marked";
 
   import Surface from "$lib/components/atoms/Surface.svelte";
+  import { overflowFade } from "$lib/actions/overflowFade.js";
 
   export type HighlightSpan = { text: string; tone?: string };
 
@@ -274,7 +275,12 @@
     <hr class="markdown__hr" />
   {:else if token.type === "list"}
     {#if token.ordered}
-      <ol class="markdown__list" start={token.start === "" ? undefined : token.start}>
+      {@const startNum = token.start === "" ? 1 : Number(token.start)}
+      <ol
+        class="markdown__list"
+        start={startNum === 1 ? undefined : startNum}
+        style={startNum === 1 ? undefined : `counter-reset: markdown-list ${startNum - 1}`}
+      >
         {#each token.items as item, i (i)}{@render listItem(item)}{/each}
       </ol>
     {:else}
@@ -284,7 +290,7 @@
     {/if}
   {:else if token.type === "table"}
     {@const numericCols = token.header.map((_, col) => isNumericColumn(token.rows, col))}
-    <div class="markdown__table-wrap">
+    <div class="markdown__table-wrap" use:overflowFade>
       <table class="markdown__table">
         <thead>
           <tr>
@@ -362,8 +368,36 @@
     margin-bottom: var(--space-2);
   }
 
+  /* Reading typography: Prose block mode, and any other non-`compact`
+     Markdown (e.g. the plain doc demo) — comfortable size/leading/colour
+     from the shared `--reading-*` tokens (components.css), plus paragraph
+     spacing that scales with the type size instead of a fixed rem gap.
+     Higher specificity than the bare `.markdown`/`> *` rules above (two
+     classes vs one) so it wins without fighting source order; `.markdown--
+     compact` stays completely untouched. */
+  .markdown:not(.markdown--compact) {
+    font-size: var(--reading-size);
+    line-height: var(--reading-leading);
+    color: var(--reading-body-color);
+    /* Light body (Lexend 300) reads calmer at reading size; the fallback
+       keeps apps that don't load 300 on the regular cut. */
+    font-weight: var(--reading-weight, 400);
+    font-kerning: normal;
+    /* A hair of tracking — Lexend reads slightly tight at reading size. */
+    letter-spacing: 0.006em;
+  }
+
+  /* `:not(:last-child)` guarantees the last block never carries a bottom
+     margin regardless of cascade order against the `:last-child` rule
+     above — both would otherwise land at equal specificity. */
+  .markdown:not(.markdown--compact) > :global(*:not(:last-child)) {
+    margin-bottom: var(--reading-paragraph-gap);
+  }
+
   /* Inline mode: same type ramp, but a `<span>` in the flow of the
-     surrounding text instead of a block-level column. */
+     surrounding text instead of a block-level column. (Margins/measure set
+     above have no effect on an inline, non-replaced box, so `inline` never
+     picks up block spacing regardless of selector overlap.) */
   .markdown--inline {
     display: inline;
     font-family: var(--font-ui);
@@ -401,6 +435,14 @@
   .markdown__p {
     margin: 0;
     hyphens: auto;
+    -webkit-hyphens: auto;
+    /* min-prefix/suffix/before-break so German compounds don't hyphenate
+       into short, ugly fragments at line ends (the default before/after
+       minimums are too eager). Not yet supported everywhere; harmless
+       where it isn't. */
+    hyphenate-limit-chars: 7 3 3;
+    -webkit-hyphenate-limit-chars: 7 3 3;
+    text-wrap: pretty;
   }
 
   /* Sanitisation is the `math` callback's responsibility (see the Props
@@ -411,11 +453,25 @@
 
   .markdown__strong {
     font-weight: var(--font-weight-semibold);
-    color: var(--color-text-high);
+    color: var(--reading-strong-color);
   }
 
+  /* Reading mode pairs bold with the (light) reading body weight, so bold
+     stays emphasis instead of shouting; compact keeps semibold on 400. */
+  .markdown:not(.markdown--compact) .markdown__strong {
+    font-weight: var(--reading-strong-weight, var(--font-weight-semibold));
+  }
+
+  /* Lexend ships no italic style, so `font-style: italic` here would just
+     ask the browser to synthesise a slanted fake — the "clumsy oblique"
+     Lexend is known for. `font-synthesis: none` refuses that synthesis
+     outright; emphasis instead reads through colour (matching `strong`,
+     one weight lighter) rather than a decoration that would visually
+     collide with `.markdown__link`'s underline in running prose. */
   .markdown__em {
-    font-style: italic;
+    font-style: normal;
+    font-synthesis: none;
+    color: var(--reading-strong-color);
   }
 
   .markdown__del {
@@ -426,17 +482,33 @@
   .markdown__codespan {
     font-family: var(--font-mono);
     font-size: 0.9em;
-    padding: 0.05em 0.35em;
+    padding: 0.15em 0.4em;
     border-radius: var(--radius-xs, var(--radius-control));
     background: var(--color-surface-1);
     color: var(--color-text-high);
+    /* `.markdown__p` sets `hyphens: auto` for prose — inherited into inline
+       children unless overridden here, which is what let a code token like
+       "Lessons.md" get hyphenated mid-token at a line break. `manual` opts
+       code back out; `break-word` (not `anywhere`) only breaks a token when
+       it can't fit on a line by itself, and doesn't shrink min-content sizing
+       the way `anywhere` does. `white-space: normal` keeps wrapping as a last
+       resort for a pathologically long token (a URL, a hash). */
+    hyphens: manual;
+    -webkit-hyphens: manual;
+    white-space: normal;
+    overflow-wrap: break-word;
+    /* Without this, a chip that wraps across two lines looks like its
+       padding (and thus a stray leading space) only applies to one
+       fragment; `clone` gives each fragment its own padding/background. */
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
   }
 
   .markdown__link {
     color: var(--color-secondary, var(--color-accent));
     text-decoration: underline;
     text-decoration-thickness: 1px;
-    text-underline-offset: 0.15em;
+    text-underline-offset: 0.2em;
     text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
     transition: text-decoration-color var(--duration-normal, 0.15s) var(--ease-out, ease);
   }
@@ -513,39 +585,143 @@
     margin: 0;
   }
 
-  /* --- Lists --- */
+  /* --- Lists ---
+     Each item is a 2-column grid: a fixed marker column (bullet / number /
+     checkbox) and a flexible body column. `display: flex` on the item (the
+     old layout) suppresses `::marker` entirely — that's why native list
+     markers were invisible — so the marker is drawn as its own grid cell
+     (`::before`) instead, with `list-style: none` throughout. Because the
+     body is always the grid's second column, a wrapped line lands under the
+     item's own text, never under the marker; a nested list lives inside
+     that same body column, which — being one marker-column-width in from
+     the parent's marker — reads as "indented one marker column" without
+     any extra margin. */
   .markdown__list {
+    list-style: none;
     margin: 0;
-    padding-left: var(--space-5);
+    padding: 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
   }
 
   .markdown__list-item {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1.5em minmax(0, 1fr);
+    column-gap: var(--space-2);
     align-items: baseline;
-    gap: var(--space-2);
   }
 
-  .markdown__list-item--task {
-    list-style: none;
-    margin-left: calc(var(--space-5) * -1);
+  /* Unordered marker: a mono dot rather than the native disc — it reads
+     calmer next to Illinois Mono numerals and shares the ordered marker's
+     font instead of clashing with it. */
+  ul.markdown__list > .markdown__list-item::before {
+    content: "\2022";
+    grid-column: 1;
+    font-family: var(--font-mono);
+    color: var(--color-text-low);
   }
 
-  .markdown__list-item-body > :global(.markdown__list) {
-    margin-top: var(--space-1);
+  /* Ordered marker: a CSS counter standing in for native `<ol>` numbering
+     (same reason as above — a grid/flex item never renders `::marker`).
+     Right-aligned and tabular so "9." → "10." doesn't shift the body
+     column. `start` (rendered as both the `start` attribute and, when it
+     isn't 1, an inline `counter-reset`) offsets the count. */
+  ol.markdown__list {
+    counter-reset: markdown-list;
+  }
+
+  ol.markdown__list > .markdown__list-item {
+    counter-increment: markdown-list;
+  }
+
+  ol.markdown__list > .markdown__list-item::before {
+    content: counter(markdown-list) ".";
+    grid-column: 1;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--font-feature-numeric);
+    text-align: right;
+    color: var(--color-text-low);
+  }
+
+  /* Task items: the checkbox takes the marker column, so there's no bullet
+     to draw. */
+  .markdown__list-item--task::before {
+    content: none;
   }
 
   .markdown__task-checkbox {
-    flex: none;
+    grid-column: 1;
     align-self: center;
     accent-color: var(--color-secondary, var(--color-accent));
   }
 
-  /* --- Table (Table.svelte conventions: uppercase headers, tabular-nums) --- */
+  /* The body is its own flex column, so a loose (paragraph-wrapped) item or
+     an item followed by a nested list gets exactly one gap between its
+     children, from here alone — nothing layered on top (the old nested-list
+     `margin-top` on top of a body gap is what would have doubled it). */
+  /* Normal block flow, not flex: a tight list item's body is a run of
+     inline tokens (text, strong, code, punctuation), and as flex items each
+     would land on its own line. Only block children get spacing. */
+  .markdown__list-item-body {
+    grid-column: 2;
+    min-width: 0;
+    display: block;
+  }
+
+  .markdown__list-item-body > :global(.markdown__p) {
+    margin: 0;
+  }
+
+  .markdown__list-item-body > :global(:is(.markdown__p, .markdown__list, .markdown__fence, .markdown__blockquote, .markdown__table-wrap) + *),
+  .markdown__list-item-body > :global(* + :is(.markdown__p, .markdown__list, .markdown__fence, .markdown__blockquote, .markdown__table-wrap)) {
+    margin-top: var(--space-1);
+  }
+
+  /* --- Table (Table.svelte conventions: uppercase headers, tabular-nums) ---
+     A table is never squeezed to the prose measure (Prose.svelte's measure
+     rule explicitly excludes `.markdown__table-wrap`) — it's free to use
+     the full column width. On a narrow container it instead scrolls
+     horizontally: `use:overflowFade` (same action `ScrollArea`/`Tile`/
+     `Terminal` use for vertical clipping) tags `data-overflow-x` with which
+     edge is currently clipped, and the mask below fades only that edge —
+     mirroring glass.css's `[data-overflow]` vertical mask, kept local here
+     since it's Markdown-table-specific rather than a general utility. */
   .markdown__table-wrap {
     overflow-x: auto;
+    --fade-left: 0px;
+    --fade-right: 0px;
+  }
+
+  /* `data-overflow-x` is set by the `overflowFade` action at runtime, not
+     present in the template — :global() so svelte-check doesn't flag these
+     as unused selectors. */
+  .markdown__table-wrap:global([data-overflow-x]) {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black var(--fade-left),
+      black calc(100% - var(--fade-right)),
+      transparent
+    );
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      black var(--fade-left),
+      black calc(100% - var(--fade-right)),
+      transparent
+    );
+  }
+
+  .markdown__table-wrap:global([data-overflow-x="left"]),
+  .markdown__table-wrap:global([data-overflow-x="both"]) {
+    --fade-left: 1.25rem;
+  }
+
+  .markdown__table-wrap:global([data-overflow-x="right"]),
+  .markdown__table-wrap:global([data-overflow-x="both"]) {
+    --fade-right: 1.5rem;
   }
 
   .markdown__table {
@@ -558,6 +734,7 @@
   .markdown__th {
     padding: var(--space-2) var(--space-3);
     border-bottom: var(--border-width, 1px) solid var(--color-border-subtle);
+    font-family: var(--font-mono);
     font-size: var(--text-xs);
     font-weight: var(--font-weight-medium);
     text-transform: uppercase;
@@ -571,10 +748,28 @@
     border-bottom: var(--border-width, 1px) solid var(--color-border-subtle);
   }
 
+  /* Text cells may wrap between words, but never mid-word: with numeric
+     columns fixed (nowrap) the table would otherwise squeeze labels until
+     "baseline-a" breaks at its hyphen. When it can't fit, the wrapper
+     scrolls instead. */
+  .markdown__td:not(.markdown__td--numeric) {
+    min-width: 14ch;
+    hyphens: manual;
+    -webkit-hyphens: manual;
+  }
+
+  .markdown__td:not(.markdown__td--numeric) :global(*),
+  .markdown__td:not(.markdown__td--numeric) {
+    overflow-wrap: normal;
+  }
+
   .markdown__th--numeric,
   .markdown__td--numeric {
     font-variant-numeric: tabular-nums;
     font-feature-settings: var(--font-feature-numeric);
+    /* The first column may wrap (it's usually a label); numeric columns
+       never do — a wrapped number is unreadable. */
+    white-space: nowrap;
   }
 
   /* --- Fenced code --- */

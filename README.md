@@ -739,9 +739,26 @@ numbers (`1` → `01`); anything else (letters, ranges) renders as given.
 `Pipeline` all carry the outline contract: `id`, `data-outline`,
 `data-outline-level`, `data-outline-label`, and optional `data-outline-number`
 on their root element. The `Outline` and `CaseStudy` components discover them
-with no context or store — they query the DOM. Inside a wide `CaseStudy`
-(≥64rem container) top-level section numbers hang in a left gutter so titles
-line up; everywhere else they sit inline before the title.
+with no context or store — they query the DOM.
+
+**One shared gutter, one content edge.** Inside a wide `CaseStudy` (≥64rem
+container) `CaseStudy` reserves a single left gutter (`--reading-gutter`, set
+to `--reading-gutter-wide` — `9rem` by default) that both its header and body
+share, so the title/tags/metrics and the body's prose start at the same
+content edge. Every `Section` number — any heading level, any nesting depth —
+hangs right-aligned into that gutter instead of sitting inline, so `02` and
+`02.01` share one right edge and every title (top-level or nested) shares one
+left edge; so does `StackManifest`'s key column when it's used inside a wide
+`CaseStudy` (its keys hang into the gutter, values start at the content edge).
+Everywhere else — narrow, or outside `CaseStudy` — the gutter is `0` and
+numbers/keys sit inline before their title/value, unchanged.
+
+A container that adds its own horizontal inset inside the content column
+(`DeepDive`'s glass panel: padding + border) sets `--reading-inset` on its
+content so hanging elements inside it still reach the shared gutter (offset =
+`--reading-gutter` + `--reading-inset`); it composes across nesting rather
+than replacing, so `--reading-inset` still adds up correctly if a `DeepDive`
+ever ends up nested inside another one.
 
 **`Prose` handles Markdown.** Pass `text` (a Markdown string), `inline` to
 unwrap single-paragraph text, `math?: (tex, display) => string` for opt-in
@@ -752,9 +769,38 @@ and `inline` props, plus `lang` for the root element's `lang` attribute.
 
 **Container queries, not viewport.** Every component uses `@container` queries
 instead of media queries, so tiles and pages use the same layout logic.
-`--reading-anchor-offset` (scroll margin on outlined sections, default `4rem`)
-and `--reading-gutter` (outline gutter width) are CSS custom properties the
-host can override.
+`--reading-anchor-offset` (scroll margin on outlined sections, default `4rem`),
+`--reading-gutter-wide` (the gutter width `CaseStudy` uses once wide, default
+`9rem`) and `--reading-inset` (a nesting container's own horizontal inset —
+see above) are CSS custom properties the host can override.
+
+### Charts
+
+`Benchmark` compares variants across metrics: a small multiple with one mini
+bar chart per numeric metric on its own scale, plus fact chips for boolean or
+text metrics. `highlight` picks out one variant (e.g. your own tool) in accent;
+others de-emphasise. Metrics carry `unit`, `better: "lower" | "higher"` for
+directional hints, and optional `scale: "log"` for orders-of-magnitude domains.
+Hovering/focusing a variant lights it up across all multiples; a table toggle
+shows the full data when charts clip on narrow screens.
+
+```svelte
+<Benchmark
+  highlight="new"
+  variants={[
+    { id: "old", label: "Status quo" },
+    { id: "new", label: "Rebuilt" },
+  ]}
+  metrics={[
+    { id: "time", label: "Build time", unit: "s", better: "lower", values: { old: 240, new: 18 } },
+    // yes/no: `better: "lower"` means "no" is the good answer (green)
+    { id: "shell", label: "Shell in image", better: "lower", values: { old: true, new: false } },
+  ]}
+/>
+```
+
+`StackGroup` gains `section?: string`: group items under a titled section, so
+one `StackManifest` can organize multiple stack lists with a shared key column.
 
 ### Terminal mode (case slice)
 

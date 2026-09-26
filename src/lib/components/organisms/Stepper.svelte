@@ -54,6 +54,13 @@
               {index + 1}
             {/if}
           </span>
+          <!-- Horizontal only: runs from this marker to the next one. -->
+          <span
+            class="stepper__connector stepper__connector--after"
+            class:stepper__connector--hidden={index === steps.length - 1}
+            data-state={state}
+            aria-hidden="true"
+          ></span>
         </span>
 
         {#if onstep}
@@ -191,17 +198,32 @@
     padding-bottom: 0;
   }
 
-  /* Horizontal: rail turns sideways (connector runs left of the marker),
-     labels move under the marker, items share the row equally. */
-  .stepper[data-orientation="horizontal"] .stepper__list,
-  .stepper[data-orientation="auto"] .stepper__list {
-    container-type: inline-size;
+  /* Vertical: only the leading connector (above each marker) is drawn. */
+  .stepper__connector--after {
+    display: none;
   }
 
+  /* The stepper root is the one container every `auto` rule queries (a
+     named query, so an unrelated container in between can't answer it).
+     Before, the list queried an outer container while the items queried the
+     list, so between the two widths it rendered half-horizontal. */
+  .stepper {
+    container: stepper / inline-size;
+  }
+
+  .stepper[data-orientation="horizontal"] .stepper__list {
+    flex-direction: row;
+  }
+
+  /* Timeline layout: every column starts with its marker, the trailing
+     connector runs to the next column's marker, and labels sit
+     left-aligned under their own marker with a gap before the next
+     column, so nothing drifts from its marker or overflows. */
   .stepper[data-orientation="horizontal"] .stepper__item {
     flex: 1 1 0;
+    min-width: 0;
     flex-direction: column;
-    align-items: center;
+    gap: var(--space-2);
   }
 
   .stepper[data-orientation="horizontal"] .stepper__rail {
@@ -210,27 +232,41 @@
   }
 
   .stepper[data-orientation="horizontal"] .stepper__connector {
+    display: none;
+  }
+
+  .stepper[data-orientation="horizontal"] .stepper__connector--after {
+    display: block;
     width: auto;
     height: 1px;
     min-height: 0;
-    min-width: var(--space-4);
+    margin-inline: var(--space-2);
   }
+
 
   .stepper[data-orientation="horizontal"] .stepper__control {
-    align-items: center;
-    text-align: center;
-    padding: var(--space-2) 0 0;
+    min-width: 0;
+    padding: 0 var(--space-4) 0 0;
   }
 
-  @container (min-width: 44rem) {
-    .stepper[data-orientation="auto"] .stepper__list {
+  .stepper[data-orientation="horizontal"] .stepper__item:last-child .stepper__control {
+    padding-right: 0;
+  }
+
+  @container stepper (min-width: 44rem) {
+  .stepper[data-orientation="auto"] .stepper__list {
       flex-direction: row;
     }
 
+    /* Timeline layout: every column starts with its marker, the trailing
+       connector runs to the next column's marker, and labels sit
+       left-aligned under their own marker with a gap before the next
+       column, so nothing drifts from its marker or overflows. */
     .stepper[data-orientation="auto"] .stepper__item {
       flex: 1 1 0;
+      min-width: 0;
       flex-direction: column;
-      align-items: center;
+      gap: var(--space-2);
     }
 
     .stepper[data-orientation="auto"] .stepper__rail {
@@ -239,16 +275,25 @@
     }
 
     .stepper[data-orientation="auto"] .stepper__connector {
+      display: none;
+    }
+
+    .stepper[data-orientation="auto"] .stepper__connector--after {
+      display: block;
       width: auto;
       height: 1px;
       min-height: 0;
-      min-width: var(--space-4);
+      margin-inline: var(--space-2);
     }
 
+
     .stepper[data-orientation="auto"] .stepper__control {
-      align-items: center;
-      text-align: center;
-      padding: var(--space-2) 0 0;
+      min-width: 0;
+      padding: 0 var(--space-4) 0 0;
+    }
+
+    .stepper[data-orientation="auto"] .stepper__item:last-child .stepper__control {
+      padding-right: 0;
     }
   }
 </style>

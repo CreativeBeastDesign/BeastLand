@@ -151,6 +151,7 @@ export { default as Section } from "$lib/components/organisms/Section.svelte";
 export { default as DeepDive } from "$lib/components/organisms/DeepDive.svelte";
 export { default as DecisionRecord } from "$lib/components/organisms/DecisionRecord.svelte";
 export { default as Pipeline } from "$lib/components/organisms/Pipeline.svelte";
+export { default as Benchmark } from "$lib/components/organisms/Benchmark.svelte";
 export { default as Stepper } from "$lib/components/organisms/Stepper.svelte";
 export { default as Outline } from "$lib/components/organisms/Outline.svelte";
 export { default as Tree } from "$lib/components/organisms/Tree.svelte";

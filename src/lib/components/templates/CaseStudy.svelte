@@ -112,17 +112,22 @@
 
 <style>
   .case-study {
-    container-type: inline-size;
+    container: case-study / inline-size;
     display: flex;
     flex-direction: column;
     gap: var(--space-6);
+    /* One shared gutter for the whole article: 0 narrow (everything inline),
+       `--reading-gutter-wide` wide. Set here (not lower) so both the header
+       and the body inherit the same value and share one content edge. */
+    --reading-gutter: 0px;
   }
 
   .case-study__header {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-4);
     max-inline-size: 52rem;
+    padding-inline-start: var(--reading-gutter, 0px);
   }
 
   .case-study__eyebrow {
@@ -172,17 +177,22 @@
     max-inline-size: 72ch;
   }
 
+  .case-study__meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+  }
+
   .case-study__layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-5);
     align-items: start;
-    --reading-gutter: 0px;
   }
 
   .case-study__body {
     max-inline-size: 52rem;
-    padding-left: var(--reading-gutter, 0px);
+    padding-inline-start: var(--reading-gutter, 0px);
     display: flex;
     flex-direction: column;
     gap: var(--space-6);
@@ -199,22 +209,22 @@
   }
 
   @container (min-width: 64rem) {
+    /* A container query can only match descendants of the element that
+       establishes the containment context, never that element itself — so
+       this sets `--reading-gutter` on the header and layout (both
+       descendants of `.case-study`, which has `container-type`) rather than
+       on `.case-study` directly. */
+    .case-study__header,
+    .case-study__layout {
+      --reading-gutter: var(--reading-gutter-wide);
+    }
+
     .case-study__layout {
       grid-template-columns: minmax(0, 1fr) 15rem;
-      --reading-gutter: 4rem;
     }
 
     .case-study__outline--bar {
       display: none;
-    }
-
-    /* Only here does the body reserve a gutter, so only here do top-level
-       section numbers hang into it (titles line up across sections). */
-    .case-study__body > :global(.section) > :global(.section__heading) > :global(.section__number) {
-      position: absolute;
-      left: calc(-1 * var(--reading-gutter));
-      width: calc(var(--reading-gutter) - var(--space-3));
-      text-align: right;
     }
 
     .case-study__outline--rail {

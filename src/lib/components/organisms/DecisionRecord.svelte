@@ -59,15 +59,17 @@
   data-outline-label={unlisted ? undefined : title}
 >
   <header class="decision-record__header">
-    <span class="decision-record__prefix">ADR</span>
-    <svelte:element this={`h${level}`} class="decision-record__title">{title}</svelte:element>
-    {#if status}
-      <Badge tone={STATUS_TONE[status]}>
-        <span class="decision-record__status" class:decision-record__status--strike={strikeStatus}>
-          {status}
-        </span>
-      </Badge>
-    {/if}
+    <p class="decision-record__eyebrow">// adr</p>
+    <div class="decision-record__title-row">
+      <svelte:element this={`h${level}`} class="decision-record__title">{title}</svelte:element>
+      {#if status}
+        <Badge tone={STATUS_TONE[status]} class="decision-record__status-badge">
+          <span class="decision-record__status" class:decision-record__status--strike={strikeStatus}>
+            {status}
+          </span>
+        </Badge>
+      {/if}
+    </div>
   </header>
 
   <div class="decision-record__part">
@@ -87,9 +89,9 @@
           <p class="decision-record__label">gains</p>
           <ul class="decision-record__list">
             {#each gains as gain}
-              <li>
+              <li class="decision-record__item">
                 <span class="decision-record__bullet decision-record__bullet--gain" aria-hidden="true">+</span>
-                {gain}
+                <Prose text={gain} inline class="decision-record__item-text" />
               </li>
             {/each}
           </ul>
@@ -100,9 +102,9 @@
           <p class="decision-record__label">costs</p>
           <ul class="decision-record__list">
             {#each costs as cost}
-              <li>
+              <li class="decision-record__item">
                 <span class="decision-record__bullet decision-record__bullet--cost" aria-hidden="true">−</span>
-                {cost}
+                <Prose text={cost} inline class="decision-record__item-text" />
               </li>
             {/each}
           </ul>
@@ -116,9 +118,9 @@
       <p class="decision-record__label">consequences</p>
       <ul class="decision-record__list">
         {#each consequences as item}
-          <li>
+          <li class="decision-record__item">
             <span class="decision-record__bullet" aria-hidden="true">•</span>
-            {item}
+            <Prose text={item} inline class="decision-record__item-text" />
           </li>
         {/each}
       </ul>
@@ -130,10 +132,13 @@
       <p class="decision-record__label">alternatives</p>
       <ul class="decision-record__list decision-record__list--alternatives">
         {#each alternatives as alt}
-          <li>
+          <li class="decision-record__item">
             <span class="decision-record__bullet" aria-hidden="true">✕</span>
-            <strong class="decision-record__option">{alt.option}</strong>
-            <span class="decision-record__reason">— {alt.rejectedBecause}</span>
+            <Prose
+              text={`**${alt.option}** — ${alt.rejectedBecause}`}
+              inline
+              class="decision-record__item-text"
+            />
           </li>
         {/each}
       </ul>
@@ -157,24 +162,47 @@
 
   .decision-record__header {
     display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: var(--space-2);
+    flex-direction: column;
+    gap: var(--space-1);
   }
 
-  .decision-record__prefix {
+  .decision-record__eyebrow {
+    margin: 0;
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     letter-spacing: 0.04em;
-    color: var(--color-accent);
+    color: var(--color-text-low);
+  }
+
+  .decision-record__title-row {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--space-2);
   }
 
   .decision-record__title {
+    /* Basis 0: the title wraps within the row instead of claiming the whole
+       line and pushing the status badge underneath. */
+    flex: 1 1 0;
+    min-width: 0;
     margin: 0;
     font-family: var(--font-ui);
     font-weight: var(--font-weight-semibold);
     font-size: var(--text-lg);
+    line-height: 1.2;
     color: var(--color-text-high);
+  }
+
+  /* Centers the badge on the title's first line rather than its whole
+     (possibly wrapped) block: half the gap between the title's first line
+     box and the badge's own rendered height (line-height 1 + padding +
+     border, set alongside this rule). Wraps below the title on narrow. */
+  .decision-record :global(.decision-record__status-badge) {
+    flex: none;
+    align-self: flex-start;
+    line-height: 1;
+    margin-top: calc((var(--text-lg) * 1.2 - (var(--text-xs) + 0.3rem + 2 * var(--border-width, 1px))) / 2);
   }
 
   .decision-record__status {
@@ -192,9 +220,20 @@
     min-width: 0;
   }
 
+  /* The accent bar hangs into the card's own padding instead of indenting
+     the part's text, so "decision" lines up with "context"/"gains"/"costs". */
   .decision-record__part--decision {
-    padding-left: var(--space-3);
-    border-left: 2px solid var(--color-accent);
+    position: relative;
+  }
+
+  .decision-record__part--decision::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(-1 * var(--space-3));
+    width: 2px;
+    background: var(--color-accent);
   }
 
   .decision-record__label {
@@ -217,9 +256,15 @@
     font-size: var(--text-sm);
   }
 
+  /* Hanging marker: the marker gets its own column so wrapped lines of the
+     item's text align with the first line's text, not with the marker. */
+  .decision-record__item {
+    display: grid;
+    grid-template-columns: 1.25em minmax(0, 1fr);
+    align-items: baseline;
+  }
+
   .decision-record__bullet {
-    display: inline-block;
-    width: 1em;
     font-family: var(--font-mono);
     color: var(--color-text-low);
   }
@@ -232,13 +277,24 @@
     color: var(--color-danger);
   }
 
-  .decision-record__option {
-    color: var(--color-text-high);
-    font-weight: var(--font-weight-medium);
+  /* `Prose` renders its own block with its own (larger, longer-form) reading
+     typography — reset it back to the list's own compact size/colour so
+     `**bold**`/`` `code` `` render safely without changing the card's
+     density. Its `:global(strong)`/`:global(code)` rules still apply on top. */
+  .decision-record :global(.decision-record__item-text) {
+    font-size: inherit;
+    line-height: inherit;
+    color: inherit;
   }
 
-  .decision-record__reason {
-    color: var(--color-text-med);
+  .decision-record :global(.decision-record__item-text .markdown) {
+    font-size: inherit;
+    line-height: inherit;
+    color: inherit;
+  }
+
+  .decision-record :global(.decision-record__item-text.prose .markdown > *) {
+    max-inline-size: none;
   }
 
   .decision-record__tradeoffs {

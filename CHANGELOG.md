@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.8.0
+
+- New `Benchmark` organism: small multiples comparing build variants across
+  metrics with different units. One mini bar chart per numeric metric on its
+  own scale; `highlight` variant in accent, others de-emphasised. Metrics carry
+  `unit`, `better` hint (`"higher"` or `"lower"`), and optional `scale: "log"`
+  for orders-of-magnitude data. Yes/no and text metrics render as fact chips
+  whose colour follows `better`. Hovering/focusing a variant highlights it
+  across all multiples. Table toggle shows an accessible, horizontally scrollable
+  fallback. Types `BenchmarkVariant`, `BenchmarkMetric` in `$lib/reading/types`;
+  pure helpers `linearScale`, `logScale`, `metricScale`, `isNumericMetric`,
+  `formatValue`, `factTone` in `$lib/reading/benchmark`.
+- Reading typography: `Prose` renders Markdown in reading (non-compact) mode.
+  New CSS tokens for comfortable long-form rhythm: `--reading-measure`
+  (66ch), `--reading-size` (1.0625x base), `--reading-leading` (1.7),
+  `--reading-paragraph-gap` (0.9em), `--reading-body-color` (78% text-high),
+  `--reading-strong-color` (text-high). Paragraphs get `text-wrap: pretty`,
+  German-friendly hyphenation limits (7-3-3), semibold strong, and non-italic
+  emphasis (Lexend has no italic). Links have underline offset.
+- Markdown tables scroll horizontally in `.markdown__table-wrap` with
+  `overflowFade` edge fades. Mono headers, numeric cells never wrap, text
+  cells have minimum width and never break mid-word.
+- `MetricGrid` aligns card rows with CSS subgrid: value / label / detail rows
+  line up across all cards. `Metric` values fit the card via proportional-width
+  font sizing so the longest word fits; hyphenated values like "Bit-for-bit"
+  stay intact.
+- `StackGroup` gains `section?: string`: one `StackManifest` can hold multiple
+  titled sections sharing one key column.
+- `CaseStudy` header and `meta` slot get consistent vertical spacing (`meta`
+  is a flex column with a gap).
+- `Stepper` gains proper horizontal layout: `orientation="horizontal"` renders
+  in a row with a timeline (each column starts at its marker, trailing connector
+  runs to the next marker). Labels left-align under their marker, equal-width
+  columns, never overflows.
+- One orientation gutter for wide `CaseStudy` containers (≥64rem):
+  header and body share one content edge; every `Section` number (any
+  level, also inside `DeepDive` panels) and every `StackManifest` key hangs
+  in the gutter, right-aligned. New tokens `--reading-gutter-wide` (9rem)
+  and `--reading-inset` (horizontal inset of nested panels). The hang only
+  applies inside a `CaseStudy` (named container query `case-study`).
+- `DecisionRecord`: list items and alternatives render Markdown (via
+  `Prose inline`), markers hang (`+`/`−`/`•`/`✕`), `// adr` eyebrow instead
+  of an inline prefix, status badge right-aligned on the title's first line.
+- Markdown lists get hanging markers again (items were `display: flex`, which
+  suppressed `::marker`): mono `•` / counters, wrapped lines align with the
+  text. Inline code no longer breaks mid-token.
+- `CaseIndex` aligns card rows with subgrid (tags / title / standfirst /
+  metric / footer line up across cards).
+- `MetricGrid` gives every value one shared size (fitted to the longest
+  word in the grid, exported helper `longestWordLength` from `Metric`) and
+  bottom-aligns values on the shared value row.
+- `Stepper` `orientation="auto"` queries one named container (the stepper
+  root) so list and items can't disagree and render half-horizontal.
+- Inside `DeepDive` panels, hanging section numbers and manifest keys keep
+  the shared right edge while titles/values start at the panel's padded
+  content edge (the inset goes into the gap).
+- Markdown list items flow as blocks again: inline fragments of a tight
+  item (bold, code, punctuation) no longer stack on separate lines.
+- `CaseCard` tag lines pack at the top of the shared subgrid row.
+- `DeepDive`'s gradient hairline is drawn as a masked gradient top border
+  over the panel's border box, so it follows the rounded corners and ends
+  inside the panel instead of running past them.
+- Reading body weight tokens: `--reading-weight` (300) and
+  `--reading-strong-weight` (500); apps must load those Lexend cuts.
+
 ## 0.7.0
 
 - Long-form case-study components for building in-depth project retrospectives.

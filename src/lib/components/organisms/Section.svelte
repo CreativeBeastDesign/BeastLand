@@ -112,6 +112,42 @@
     font-feature-settings: var(--font-feature-numeric);
   }
 
+  /* Wide: every section number — any level, any depth (including nested
+     inside a DeepDive panel) — hangs into the shared reading gutter instead
+     of sitting inline, so titles at every level share one content edge.
+     `--reading-gutter` is 0 outside a wide `CaseStudy` (and `--reading-inset`
+     0 outside a nesting panel), so this container query is the only thing
+     gating the hang — the calc itself degrades to a 0 offset/width on its
+     own whenever there is nothing to hang into.
+
+     `--reading-inset` only shifts *where* the number's un-hung position
+     starts (a panel's padding pushes it right before this even applies), so
+     only the margin that cancels that shift needs it. The visible width —
+     what actually puts the right edge in the same place at every nesting
+     depth — is `--reading-gutter` alone: adding `--reading-inset` to both
+     the margin and the width would cancel out, leaving the right edge at
+     "wherever this number naturally started minus a gap", which drifts by
+     the inset instead of lining up with shallower numbers. */
+  /* Named query: only a wide CaseStudy (which reserves the gutter) makes
+     this hang; any other wide container (a tile, a card) keeps it inline. */
+  @container case-study (min-width: 64rem) {
+    .section__heading {
+      /* Number box: pulled left by gutter + inset, but only gutter − space-3
+         wide (so every number ends on the same line, nested or not). The gap
+         after it is space-3 + inset, which puts the title back exactly at
+         the section's own content edge — inside a DeepDive panel that is
+         the panel's padded edge, not its border. */
+      gap: calc(var(--space-3) + var(--reading-inset, 0px));
+    }
+
+    .section__number {
+      flex: none;
+      text-align: end;
+      margin-inline-start: calc(-1 * (var(--reading-gutter, 0px) + var(--reading-inset, 0px)));
+      inline-size: max(0px, calc(var(--reading-gutter, 0px) - var(--space-3)));
+    }
+  }
+
   .section__title {
     font-weight: var(--font-weight-semibold);
     color: var(--color-text-high);
